@@ -350,6 +350,43 @@ app.post('/api/export', (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Synchronizes scraped email records directly into HUNTIQ CRM & Outreach queue
+ */
+app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
+  try {
+    const { records, huntiqApiUrl, apiKey, workspaceId } = req.body;
+    if (!Array.isArray(records) || records.length === 0) {
+      return res.status(400).json({ error: 'Valid records array is required' });
+    }
+
+    const endpoint = huntiqApiUrl || process.env.HUNTIQ_API_URL || 'http://localhost:3001/api/v1/integrations/lead-ingest';
+    const targetWorkspace = workspaceId || process.env.HUNTIQ_WORKSPACE_ID || 'ws-default-001';
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-workspace-id': targetWorkspace,
+        ...(apiKey ? { 'x-huntiq-api-key': apiKey } : {})
+      },
+      body: JSON.stringify({
+        source: 'EXTERNAL_EMAIL_SCRAPER',
+        createOutreachDraft: true,
+        leads: records
+      })
+    });
+
+    const data = await response.json();
+    return res.status(response.status).json(data);
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      error: `Failed to push leads to HUNTIQ: ${err.message}`
+    });
+  }
+});
+
 /* ========================================================================= */
 /* Folder & Search Organization Endpoints                                    */
 /* ========================================================================= */

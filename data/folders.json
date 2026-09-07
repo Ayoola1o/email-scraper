@@ -20,5 +20,2290 @@
         "discoveredAt": "2026-09-07T17:53:06.545Z"
       }
     ]
+  },
+  {
+    "id": "0504a5a0-b811-4abd-b1aa-643721cfc8d4",
+    "name": "hotel",
+    "createdAt": "2026-09-07T18:49:24.892Z",
+    "updatedAt": "2026-09-07T18:49:24.915Z",
+    "records": [
+      {
+        "email": "info@goldentuliponirusuites.com",
+        "domain": "goldentuliponirusuites.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/nigeria/hotels-lagos/",
+        "pageTitle": "Hotels in Lagos - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...vice\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentuliponirusuites.com\",\"Website\":\"https://oniru-suites.golden...",
+        "depth": 0,
+        "discoveredAt": "2026-09-07T18:21:41.541Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipessentialbelitung.com",
+        "domain": "goldentulipessentialbelitung.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/indonesia/",
+        "pageTitle": "Hotels in Indonesia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ties\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipessentialbelitung.com\",\"Website\":\"https://essential-belitung....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:16.323Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipessentialbelitung.com."
+        ]
+      },
+      {
+        "email": "info@gtpontianak.com",
+        "domain": "gtpontianak.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/indonesia/",
+        "pageTitle": "Hotels in Indonesia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...room\"]},\"HasBestReviews\":true},\"Email\":\"info@gtpontianak.com\",\"Website\":\"https://pontianak.goldentul...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:16.323Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "5 alt1.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "1 aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "info@gtetangerang.com",
+        "domain": "gtetangerang.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/indonesia/",
+        "pageTitle": "Hotels in Indonesia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ooms\"]},\"HasBestReviews\":true},\"Email\":\"info@gtetangerang.com\",\"Website\":\"https://essential-tangerang...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:16.323Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 mail.gtetangerang.com."
+        ]
+      },
+      {
+        "email": "info@goldenhillbygoldentulip.com",
+        "domain": "goldenhillbygoldentulip.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/indonesia/",
+        "pageTitle": "Hotels in Indonesia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ooms\"]},\"HasBestReviews\":true},\"Email\":\"info@goldenhillbygoldentulip.com\",\"Website\":\"https://golden-hill-by-gold...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:16.323Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipessentialpik.com",
+        "domain": "goldentulipessentialpik.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/indonesia/",
+        "pageTitle": "Hotels in Indonesia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...here\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipessentialpik.com\",\"Website\":\"https://essential-pik2-jaka...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:16.323Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipessentialpik-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "service@goldentulip-tainan.com",
+        "domain": "goldentulip-tainan.com",
+        "type": "role",
+        "jobTitle": "president",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/taiwan/",
+        "pageTitle": "Hotels in Taiwan - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...vice\"]},\"HasBestReviews\":true},\"Email\":\"service@goldentulip-tainan.com\",\"Website\":\"https://glory-fine-tainan.g...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:19.342Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "5 mailfilter.hibox.biz."
+        ]
+      },
+      {
+        "email": "service@janda-hotel.com.tw",
+        "domain": "janda-hotel.com.tw",
+        "type": "role",
+        "jobTitle": "president",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/taiwan/",
+        "pageTitle": "Hotels in Taiwan - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...vice\"]},\"HasBestReviews\":true},\"Email\":\"service@janda-hotel.com.tw\",\"Website\":\"https://jan-da-hotel-taichu...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:19.342Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 mail.janda-hotel.com.tw."
+        ]
+      },
+      {
+        "email": "info@goldentulipzhongxintaichung.com",
+        "domain": "goldentulipzhongxintaichung.com",
+        "type": "role",
+        "jobTitle": "president",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/taiwan/",
+        "pageTitle": "Hotels in Taiwan - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ing\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipzhongxintaichung.com\",\"Website\":\"https://zhong-xin-taichung....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:19.342Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipbangkok.com",
+        "domain": "goldentulipbangkok.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/thailand/",
+        "pageTitle": "Hotels in Thailand - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...eds\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipbangkok.com\",\"Website\":\"https://sovereign-bangkok.g...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:20.373Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@sarovarporticobirgunj.com",
+        "domain": "sarovarporticobirgunj.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/nepal/",
+        "pageTitle": "Hotels in Nepal - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...:84.867218},\"EReputation\":null,\"Email\":\"info@sarovarporticobirgunj.com\",\"Website\":\"https://sarovar-portico-bir...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:21.154Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "info@royaltulipkathmandugwarko.com",
+        "domain": "royaltulipkathmandugwarko.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/nepal/",
+        "pageTitle": "Hotels in Nepal - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@royaltulipkathmandugwarko.com\",\"Website\":\"https://royal-tulip-kathman...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:21.154Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 royaltulipkathmandugwarko-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@gsplhotels.com",
+        "domain": "gsplhotels.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/india/hotels-bangalore/",
+        "pageTitle": "Hotels in Bangalore - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...tion\"]},\"HasBestReviews\":true},\"Email\":\"info@gsplhotels.com\",\"Website\":\"https://tulip-inn-bengaluru...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:25.396Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 gsplhotels-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipvagator.com",
+        "domain": "goldentulipvagator.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "undeliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/india/hotels-goa/",
+        "pageTitle": "Hotels in Goa - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...tion\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipvagator.com\",\"Website\":\"https://vagator-goa.goldent...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:26.939Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": []
+      },
+      {
+        "email": "info@goldentulipkukasjaipur.com",
+        "domain": "goldentulipkukasjaipur.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/india/hotels-jaipur/",
+        "pageTitle": "Hotels in Jaipur - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...vice\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipkukasjaipur.com\",\"Website\":\"https://kukas-jaipur.golden...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:28.097Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipkukasjaipur-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipudaipur.com",
+        "domain": "goldentulipudaipur.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/india/hotels-udaipur/",
+        "pageTitle": "Hotels in Udaipur - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ere\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipudaipur.com\",\"Website\":\"https://udaipur.goldentulip...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:29.202Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipudaipur-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnantwerpen.com",
+        "domain": "tulipinnantwerpen.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/belgium/",
+        "pageTitle": "Hotels in Belgium - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ing\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnantwerpen.com\",\"Website\":\"https://tulip-inn-antwerpen...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:37.427Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 tulipinnantwerpen-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipvarna.com",
+        "domain": "goldentulipvarna.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/bulgaria/",
+        "pageTitle": "Hotels in Bulgaria - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...uiet\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipvarna.com\",\"Website\":\"https://varna.goldentulip.c...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:38.621Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com.goldentulipvarna.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipamneville.com",
+        "domain": "goldentulipamneville.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/france/",
+        "pageTitle": "Hotels in France 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...here\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipamneville.com\",\"Website\":\"https://amneville.goldentul...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:40.200Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipamneville-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipmarseilleeuromed.com",
+        "domain": "goldentulipmarseilleeuromed.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/france/",
+        "pageTitle": "Hotels in France 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipmarseilleeuromed.com\",\"Website\":\"https://marseille-euromed.g...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:40.200Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipmarseilleeuromed-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "reception@goldentulipsophiaantipolis.com",
+        "domain": "goldentulipsophiaantipolis.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/france/",
+        "pageTitle": "Hotels in France 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...menu\"]},\"HasBestReviews\":true},\"Email\":\"reception@goldentulipsophiaantipolis.com\",\"Website\":\"https://sophia-antipolis.go...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:40.200Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "reception@goldentuliproissysaintwitz.com",
+        "domain": "goldentuliproissysaintwitz.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/france/",
+        "pageTitle": "Hotels in France 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ion\"]},\"HasBestReviews\":false},\"Email\":\"reception@goldentuliproissysaintwitz.com\",\"Website\":\"https://roissy-saint-witz.g...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:40.200Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "reception@goldentulipsaintmalo.com",
+        "domain": "goldentulipsaintmalo.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/france/",
+        "pageTitle": "Hotels in France 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ere\"]},\"HasBestReviews\":false},\"Email\":\"reception@goldentulipsaintmalo.com\",\"Website\":\"https://saint-malo.goldentu...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:40.200Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipsaintmalo-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnhonfleur.com",
+        "domain": "tulipinnhonfleur.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/france/",
+        "pageTitle": "Hotels in France 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...oms\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnhonfleur.com\",\"Website\":\"https://tulip-inn-honfleur....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:40.200Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipborjomipalace.com",
+        "domain": "goldentulipborjomipalace.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/georgia/",
+        "pageTitle": "Hotels in Georgia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...vice\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipborjomipalace.com\",\"Website\":\"https://borjomi.goldentulip...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:41.289Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "info@royaltuliptbilisi.com",
+        "domain": "royaltuliptbilisi.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/georgia/",
+        "pageTitle": "Hotels in Georgia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...\":44.83323},\"EReputation\":null,\"Email\":\"info@royaltuliptbilisi.com\",\"Website\":\"https://royal-tulip-hotel-t...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:41.289Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 royaltuliptbilisi-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnduesseldorfarena.com",
+        "domain": "tulipinnduesseldorfarena.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...oms\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnduesseldorfarena.com\",\"Website\":\"https://tulip-inn-duesseldo...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "5 mail2.tulipinnduesseldorfarena.com."
+        ]
+      },
+      {
+        "email": "reception@hotelreiss.de",
+        "domain": "hotelreiss.de",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ing\"]},\"HasBestReviews\":false},\"Email\":\"reception@hotelreiss.de\",\"Website\":\"https://kassel-hotel-reiss....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 hotelreiss-de.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnfrankfurtairport.com",
+        "domain": "tulipinnfrankfurtairport.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...eds\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnfrankfurtairport.com\",\"Website\":\"https://tulip-inn-frankfurt...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 tulipinnfrankfurtairport-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnmuenchenmesse.com",
+        "domain": "tulipinnmuenchenmesse.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...oms\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnmuenchenmesse.com\",\"Website\":\"https://tulip-inn-muenchen-...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 tulipinnmuenchenmesse-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipkiel.com",
+        "domain": "goldentulipkiel.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...oms\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipkiel.com\",\"Website\":\"https://kiel.goldentulip.co...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipkiel-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnkoenigsteinkiel.com",
+        "domain": "tulipinnkoenigsteinkiel.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...w\":[]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnkoenigsteinkiel.com\",\"Website\":\"https://tulip-inn-koenigste...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 tulipinnkoenigsteinkiel-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnpellihofrendsburg.com",
+        "domain": "tulipinnpellihofrendsburg.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...w\":[]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnpellihofrendsburg.com\",\"Website\":\"https://tulip-inn-pelli-hof...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 tulipinnpellihofrendsburg-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnstuttgartsindelfingencity.com",
+        "domain": "tulipinnstuttgartsindelfingencity.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...w\":[]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnstuttgartsindelfingencity.com\",\"Website\":\"https://tulip-inn-stuttgart...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 tulipinnstuttgartsindelfingencity-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipdomicilhamburg.com",
+        "domain": "goldentulipdomicilhamburg.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...w\":[]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipdomicilhamburg.com\",\"Website\":\"https://domicil-hamburg.gol...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipdomicilhamburg-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnambientelangenhagenhannover.com",
+        "domain": "tulipinnambientelangenhagenhannover.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnambientelangenhagenhannover.com\",\"Website\":\"https://tulip-inn-ambiente-...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 tulipinnambientelangenhagenhannover-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipamschlosskoepenickberlin.com",
+        "domain": "goldentulipamschlosskoepenickberlin.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...w\":[]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipamschlosskoepenickberlin.com\",\"Website\":\"https://am-schloss-koepenic...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipamschlosskoepenickberlin-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipbleibtreuberlin.com",
+        "domain": "goldentulipbleibtreuberlin.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/germany/",
+        "pageTitle": "Hotels in Germany - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...iet\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipbleibtreuberlin.com\",\"Website\":\"https://bleibtreu-berlin.go...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:42.634Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipbleibtreuberlin-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnpadova.com",
+        "domain": "tulipinnpadova.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/italy/",
+        "pageTitle": "Hotels in Italy - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...car\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnpadova.com\",\"Website\":\"https://tulip-inn-padova.go...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:44.878Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 tulipinnpadova-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnturinsouth.com",
+        "domain": "tulipinnturinsouth.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/italy/",
+        "pageTitle": "Hotels in Italy - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...eds\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnturinsouth.com\",\"Website\":\"https://tulip-inn-turin-sou...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:44.878Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 tulipinnturinsouth-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipinnturinwest.com",
+        "domain": "tulipinnturinwest.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/italy/",
+        "pageTitle": "Hotels in Italy - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ies\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipinnturinwest.com\",\"Website\":\"https://tulip-inn-turin-wes...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:44.878Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 tulipinnturinwest-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipromepiram.com",
+        "domain": "goldentulipromepiram.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/italy/",
+        "pageTitle": "Hotels in Italy - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ion\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipromepiram.com\",\"Website\":\"https://rome-piram.goldentu...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:44.878Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@hotel-central.nl",
+        "domain": "hotel-central.nl",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/netherlands/",
+        "pageTitle": "Hotels in The Netherlands - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@hotel-central.nl\",\"Website\":\"https://hotel-central.golde...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:46.113Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 hotelcentral-nl01c.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipzoetermeercentre.nl",
+        "domain": "goldentulipzoetermeercentre.nl",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/netherlands/",
+        "pageTitle": "Hotels in The Netherlands - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ing\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipzoetermeercentre.nl\",\"Website\":\"https://zoetermeer-den-haag...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:46.113Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipzoetermeercentre-nl.mail.protection.outlook.com.",
+          "10 server20.firstfind.nl.",
+          "20 mx1.cyso.net.",
+          "30 mx2.cyso.net."
+        ]
+      },
+      {
+        "email": "info@tulipinneindhovenairport.com",
+        "domain": "tulipinneindhovenairport.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/netherlands/",
+        "pageTitle": "Hotels in The Netherlands - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipinneindhovenairport.com\",\"Website\":\"https://tulip-inn-eindhoven...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:46.113Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 tulipinneindhovenairport-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipamptvannijkerk.nl",
+        "domain": "goldentulipamptvannijkerk.nl",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/netherlands/",
+        "pageTitle": "Hotels in The Netherlands - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...oms\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipamptvannijkerk.nl\",\"Website\":\"https://ampt-van-nijkerk.go...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:46.113Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipamptvannijkerk-nl.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "reception@goldentulipmiedzyzdroje.com",
+        "domain": "goldentulipmiedzyzdroje.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/poland/",
+        "pageTitle": "Hotels and residences in Poland - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...rby\"]},\"HasBestReviews\":false},\"Email\":\"reception@goldentulipmiedzyzdroje.com\",\"Website\":\"https://miedzyzdroje.golden...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:47.313Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipkrakowcitycenter.com",
+        "domain": "goldentulipkrakowcitycenter.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/poland/",
+        "pageTitle": "Hotels and residences in Poland - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ing\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipkrakowcitycenter.com\",\"Website\":\"https://krakow-city-center....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:47.313Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipgdanskresidence.com",
+        "domain": "goldentulipgdanskresidence.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/poland/",
+        "pageTitle": "Hotels and residences in Poland - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ing\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipgdanskresidence.com\",\"Website\":\"https://gdansk-residence.go...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:47.313Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipwarsawairporthotel.com",
+        "domain": "goldentulipwarsawairporthotel.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/poland/",
+        "pageTitle": "Hotels and residences in Poland - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ooms\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipwarsawairporthotel.com\",\"Website\":\"https://warsaw-airport.gold...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:47.313Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipkrakowkazimierz.com",
+        "domain": "goldentulipkrakowkazimierz.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/poland/",
+        "pageTitle": "Hotels and residences in Poland - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ooms\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipkrakowkazimierz.com\",\"Website\":\"https://krakow-kazimierz.go...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:47.313Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "reception@goldentulipmetropolokrakow.com",
+        "domain": "goldentulipmetropolokrakow.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/poland/",
+        "pageTitle": "Hotels and residences in Poland - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ooms\"]},\"HasBestReviews\":true},\"Email\":\"reception@goldentulipmetropolokrakow.com\",\"Website\":\"https://metropolo-krakow.go...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:47.313Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "reception@tulipresidenceswarsawtargowa.com",
+        "domain": "tulipresidenceswarsawtargowa.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/poland/",
+        "pageTitle": "Hotels and residences in Poland - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...oom\"]},\"HasBestReviews\":false},\"Email\":\"reception@tulipresidenceswarsawtargowa.com\",\"Website\":\"https://tulip-residences-wa...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:47.313Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 spool.mail.gandi.net.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com.",
+          "50 fb.mail.gandi.net."
+        ]
+      },
+      {
+        "email": "info@tulipinnzyrardow.com",
+        "domain": "tulipinnzyrardow.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/poland/",
+        "pageTitle": "Hotels and residences in Poland - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...e\":20.4529},\"EReputation\":null,\"Email\":\"info@tulipinnzyrardow.com\",\"Website\":\"https://tulip-inn-zyrardow....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:47.313Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipportogaia.com",
+        "domain": "goldentulipportogaia.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/portugal/",
+        "pageTitle": "Hotels in Portugal - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...rby\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipportogaia.com\",\"Website\":\"https://porto-gaia.goldentu...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:48.245Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipsaojoaomadeira.com",
+        "domain": "goldentulipsaojoaomadeira.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/portugal/",
+        "pageTitle": "Hotels in Portugal - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipsaojoaomadeira.com\",\"Website\":\"https://sao-joao-madeira.go...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:48.245Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 mail.goldentulipsaojoaomadeira.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipanadome.com",
+        "domain": "goldentulipanadome.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/romania/",
+        "pageTitle": "Hotels in Romania - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...beds\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipanadome.com\",\"Website\":\"https://ana-dome.goldentuli...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:49.297Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "reception@tulipinnlausanne.ch",
+        "domain": "tulipinnlausanne.ch",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/switzerland/",
+        "pageTitle": "Hotels in Switzerland - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...iet\"]},\"HasBestReviews\":false},\"Email\":\"reception@tulipinnlausanne.ch\",\"Website\":\"https://tulip-inn-lausanne....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:51.098Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 tulipinnlausanne-ch.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipgebkimkocaeli.com",
+        "domain": "goldentulipgebkimkocaeli.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/turkey/",
+        "pageTitle": "Hotels in Turkey - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ooms\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipgebkimkocaeli.com\",\"Website\":\"https://gebkim-kocaeli.gold...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:52.674Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "5 mx-01.kurumsaleposta.com.",
+          "10 mx-02.kurumsaleposta.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipmediahotel.com",
+        "domain": "goldentulipmediahotel.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/ukraine/",
+        "pageTitle": "Hotels in Ukraine",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipmediahotel.com\",\"Website\":\"https://media-hotel.goldent...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:53.776Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "info@goldentuliplediplomatecotonou.com",
+        "domain": "goldentuliplediplomatecotonou.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/ukraine/",
+        "pageTitle": "Hotels in Ukraine",
+        "contextSnippet": "...ion\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentuliplediplomatecotonou.com\",\"Website\":\"https://diplomate-cotonou.g...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:53.776Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipbahrain.com",
+        "domain": "goldentulipbahrain.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/ukraine/",
+        "pageTitle": "Hotels in Ukraine",
+        "contextSnippet": "...oms\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipbahrain.com\",\"Website\":\"https://bahrain.goldentulip...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:22:53.776Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "contact@goldentulipmartiguesprovence.com",
+        "domain": "goldentulipmartiguesprovence.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/france/provence-alpes-cote-d-azur/hotels-marseille/",
+        "pageTitle": "Hotels in Marseille - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...eds\"]},\"HasBestReviews\":false},\"Email\":\"contact@goldentulipmartiguesprovence.com\",\"Website\":\"https://martigues-provence....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:01.551Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipmartiguesprovence-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipportovecchio.com",
+        "domain": "goldentulipportovecchio.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/france/corsica/",
+        "pageTitle": "Hotel Corsica | Golden Tulip",
+        "contextSnippet": "...ding\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipportovecchio.com\",\"Website\":\"https://porto-vecchio.golde...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:03.671Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipportovecchio-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipgdanskoldtown.com",
+        "domain": "goldentulipgdanskoldtown.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/poland/hotels-gdansk/",
+        "pageTitle": "Hotels in Gdansk - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...w\":[]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipgdanskoldtown.com\",\"Website\":\"https://gdansk-old-town.gol...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:10.985Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipgdanskoldtown-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tuliphotelswroclawcentre.com",
+        "domain": "tuliphotelswroclawcentre.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/poland/hotels-wroclaw/",
+        "pageTitle": "Hotels in Wroclaw - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...vice\"]},\"HasBestReviews\":true},\"Email\":\"info@tuliphotelswroclawcentre.com\",\"Website\":\"https://tulip-hotels-wrocla...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:16.361Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "reception@tulipresidenceslviv.com",
+        "domain": "tulipresidenceslviv.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/ukraine/hotels-lviv/",
+        "pageTitle": "Hotels in Lviv",
+        "contextSnippet": "...vice\"]},\"HasBestReviews\":true},\"Email\":\"reception@tulipresidenceslviv.com\",\"Website\":\"https://tulip-residences-lv...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:20.057Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@royaltulipskikda.com",
+        "domain": "royaltulipskikda.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/algeria/",
+        "pageTitle": "Hotels in Algeria - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ere\"]},\"HasBestReviews\":false},\"Email\":\"info@royaltulipskikda.com\",\"Website\":\"https://royal-tulip-skikda....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:21.472Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentuliproyaume.com",
+        "domain": "goldentuliproyaume.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/algeria/",
+        "pageTitle": "Hotels in Algeria - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ort\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentuliproyaume.com\",\"Website\":\"https://royaume.goldentulip...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:21.472Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipoperaalger.com",
+        "domain": "goldentulipoperaalger.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/algeria/",
+        "pageTitle": "Hotels in Algeria - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...e\":2.95605},\"EReputation\":null,\"Email\":\"info@goldentulipoperaalger.com\",\"Website\":\"https://opera-alger.goldent...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:21.472Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipalexandre.com",
+        "domain": "goldentulipalexandre.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/algeria/",
+        "pageTitle": "Hotels in Algeria - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...oms\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipalexandre.com\",\"Website\":\"https://alexandre-constanti...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:21.472Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipalkhobar.com",
+        "domain": "goldentulipalkhobar.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/saudi-arabia/",
+        "pageTitle": "Hotels in Saudi Arabia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...w\":[]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipalkhobar.com\",\"Website\":\"https://al-khobar.goldentul...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:22.707Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipburaidah.com",
+        "domain": "goldentulipburaidah.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/saudi-arabia/",
+        "pageTitle": "Hotels in Saudi Arabia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...oms\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipburaidah.com\",\"Website\":\"https://buraidah.goldentuli...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:22.707Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipalansar.com",
+        "domain": "goldentulipalansar.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/saudi-arabia/",
+        "pageTitle": "Hotels in Saudi Arabia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ing\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipalansar.com\",\"Website\":\"https://al-ansar.goldentuli...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:22.707Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipalshakreen.com",
+        "domain": "goldentulipalshakreen.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/saudi-arabia/",
+        "pageTitle": "Hotels in Saudi Arabia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ing\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipalshakreen.com\",\"Website\":\"https://al-shakreen.goldent...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:22.707Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipriyadh.com",
+        "domain": "goldentulipriyadh.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/saudi-arabia/",
+        "pageTitle": "Hotels in Saudi Arabia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ding\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipriyadh.com\",\"Website\":\"https://riyadh.goldentulip....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:22.707Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipriyadh-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipalzahabi.com",
+        "domain": "goldentulipalzahabi.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/saudi-arabia/",
+        "pageTitle": "Hotels in Saudi Arabia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ion\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipalzahabi.com\",\"Website\":\"https://al-zahabi.goldentul...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:22.707Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipwestlandsnairobi.com",
+        "domain": "goldentulipwestlandsnairobi.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/kenya/",
+        "pageTitle": "Hotels in Kenya - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ooms\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipwestlandsnairobi.com\",\"Website\":\"https://westlands-nairobi.g...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:32.460Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@royaltulipachrafieh.com",
+        "domain": "royaltulipachrafieh.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/lebanon/",
+        "pageTitle": "Hotels in Lebanon - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ion\"]},\"HasBestReviews\":false},\"Email\":\"info@royaltulipachrafieh.com\",\"Website\":\"https://royal-tulip-achrafi...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:34.508Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@royaltulipcitycentertanger.com",
+        "domain": "royaltulipcitycentertanger.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/morocco/",
+        "pageTitle": "Hotels in Morocco - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...oms\"]},\"HasBestReviews\":false},\"Email\":\"info@royaltulipcitycentertanger.com\",\"Website\":\"https://royal-tulip-city-ce...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:35.539Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 aspmx.l.google.com.",
+          "20 alt1.aspmx.l.google.com.",
+          "20 alt2.aspmx.l.google.com.",
+          "30 aspmx2.googlemail.com.",
+          "30 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipibadanhotel.com",
+        "domain": "goldentulipibadanhotel.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/nigeria/",
+        "pageTitle": "Hotels in Nigeria - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...vice\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipibadanhotel.com\",\"Website\":\"https://ibadan.goldentulip....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:36.577Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "info@royaltulipmuscat.com",
+        "domain": "royaltulipmuscat.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/oman/",
+        "pageTitle": "Hotels in Oman - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ooms\"]},\"HasBestReviews\":true},\"Email\":\"info@royaltulipmuscat.com\",\"Website\":\"https://royal-tulip-muscat....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:38.398Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 royaltulipmuscat-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipmuscat.com",
+        "domain": "goldentulipmuscat.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/oman/",
+        "pageTitle": "Hotels in Oman - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...tion\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipmuscat.com\",\"Website\":\"https://muscat.goldentulip....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:38.398Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipmuscat-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@tulipresidencesmuscatthevillage.com",
+        "domain": "tulipresidencesmuscatthevillage.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/oman/",
+        "pageTitle": "Hotels in Oman - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@tulipresidencesmuscatthevillage.com\",\"Website\":\"https://tulip-residences-mu...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:38.398Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 tulipresidencesmuscatthevillage-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipmuscatthevillage.com",
+        "domain": "goldentulipmuscatthevillage.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/oman/",
+        "pageTitle": "Hotels in Oman - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ties\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipmuscatthevillage.com\",\"Website\":\"https://muscat-the-village....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:38.398Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipmuscatthevillage-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipdoha.com",
+        "domain": "goldentulipdoha.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/qatar/",
+        "pageTitle": "Hotels in Qatar - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...oms\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipdoha.com\",\"Website\":\"https://doha.goldentulip.co...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:40.416Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentuliptanzania.com",
+        "domain": "goldentuliptanzania.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/tanzania/",
+        "pageTitle": "Hotels in Tanzania - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentuliptanzania.com\",\"Website\":\"https://dar-es-salaam.golde...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:41.341Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 mail.goldentuliptanzania.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipdarcitycenter.com",
+        "domain": "goldentulipdarcitycenter.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/tanzania/",
+        "pageTitle": "Hotels in Tanzania - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ding\"]},\"HasBestReviews\":true},\"Email\":\"info@goldentulipdarcitycenter.com\",\"Website\":\"https://dar-city-center.gol...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:41.341Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipstonetownboutique.com",
+        "domain": "goldentulipstonetownboutique.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/tanzania/",
+        "pageTitle": "Hotels in Tanzania - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipstonetownboutique.com\",\"Website\":\"https://stone-town-boutique...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:41.341Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 alt3.aspmx.l.google.com.",
+          "10 alt4.aspmx.l.google.com."
+        ]
+      },
+      {
+        "email": "info@goldentuliptajsultan.com",
+        "domain": "goldentuliptajsultan.com",
+        "type": "role",
+        "jobTitle": "PRESIDENT",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/tunisia/",
+        "pageTitle": "Hotels in Tunisia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentuliptajsultan.com\",\"Website\":\"https://royal-tulip-taj-sul...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:42.333Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@royaltulipkorbous.com",
+        "domain": "royaltulipkorbous.com",
+        "type": "role",
+        "jobTitle": "PRESIDENT",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/tunisia/",
+        "pageTitle": "Hotels in Tunisia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ion\"]},\"HasBestReviews\":false},\"Email\":\"info@royaltulipkorbous.com\",\"Website\":\"https://royal-tulip-korbous...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:42.333Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulippresident.com",
+        "domain": "goldentulippresident.com",
+        "type": "role",
+        "jobTitle": "PRESIDENT",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/tunisia/",
+        "pageTitle": "Hotels in Tunisia - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...ice\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulippresident.com\",\"Website\":\"https://president-resort-ha...",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:42.333Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "1 aspmx.l.google.com.",
+          "5 alt1.aspmx.l.google.com.",
+          "5 alt2.aspmx.l.google.com.",
+          "10 aspmx2.googlemail.com.",
+          "10 aspmx3.googlemail.com."
+        ]
+      },
+      {
+        "email": "info@goldentulipkinoasiskinshasa.com",
+        "domain": "goldentulipkinoasiskinshasa.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/democratic-republic-congo/",
+        "pageTitle": "Hotels in Democratic Republic of the Congo | Golden Tulip Hôtels",
+        "contextSnippet": "...tel\"]},\"HasBestReviews\":false},\"Email\":\"info@goldentulipkinoasiskinshasa.com\",\"Website\":\"https://kin-oasis-kinshasa....",
+        "depth": 1,
+        "discoveredAt": "2026-09-07T18:23:45.510Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 goldentulipkinoasiskinshasa-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "contact@goldentulipdieppe.com",
+        "domain": "goldentulipdieppe.com",
+        "type": "role",
+        "jobTitle": "President",
+        "phone": "(+33) 1 70 98 61 18",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/en-us/our-hotels/france/hotels-dieppe/",
+        "pageTitle": "Hotels in Dieppe - 3 and 4-star | Golden Tulip Hôtels",
+        "contextSnippet": "...:1.0761889},\"EReputation\":null,\"Email\":\"contact@goldentulipdieppe.com\",\"Website\":\"https://dieppe.goldentulip....",
+        "depth": 2,
+        "discoveredAt": "2026-09-07T18:24:34.583Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "10 goldentulipdieppe-com.mail.protection.outlook.com."
+        ]
+      },
+      {
+        "email": "reception@hotel-paradou.com",
+        "domain": "hotel-paradou.com",
+        "type": "role",
+        "phone": "0800 940 014",
+        "socials": {},
+        "mxStatus": "deliverable",
+        "sourceUrl": "https://www.goldentulip.com/fr-fr/nos-hotels/france/provence-alpes-cote-d-azur/hotels-avignon/",
+        "pageTitle": "Hôtel Avignon | Golden Tulip",
+        "contextSnippet": "...ant\"]},\"HasBestReviews\":false},\"Email\":\"reception@hotel-paradou.com\",\"Website\":\"https://avignon-le-paradou....",
+        "depth": 2,
+        "discoveredAt": "2026-09-07T18:25:58.989Z",
+        "validity": {
+          "syntax": true,
+          "tld": true,
+          "isDisposable": false
+        },
+        "mxRecords": [
+          "0 mx-mibc-fr-05.mailinblack.com."
+        ]
+      }
+    ]
   }
 ]
