@@ -241,6 +241,7 @@
             <button class="filter-pill active" data-type="all">All</button>
             <button class="filter-pill" data-type="personal">Personal</button>
             <button class="filter-pill" data-type="role">Role / Dept</button>
+            <button class="filter-pill" data-type="deliverable">✓ Deliverable Only</button>
           </div>
         </div>
 
@@ -261,8 +262,13 @@
           </button>
 
           <!-- Live MX Deliverability Verification Button -->
-          <button id="btn-verify-mx" class="btn btn-secondary btn-sm" title="Verify live MX record deliverability for displayed leads">
+          <button id="btn-verify-mx" class="btn btn-secondary btn-sm" title="Verify live MX record deliverability and move dead emails out">
             🛡️ Verify MX
+          </button>
+
+          <!-- Move Dead Emails Out Button -->
+          <button id="btn-purge-dead" class="btn btn-secondary btn-sm" title="Move all dead/undeliverable emails out of the active list into the 'Dead / Bounced Emails' folder">
+            🧹 Move Dead Out
           </button>
 
           <!-- HUNTIQ CRM Sync Button -->

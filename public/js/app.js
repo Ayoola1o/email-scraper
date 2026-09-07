@@ -138,6 +138,7 @@ const elements = {
 
   // Actions
   btnVerifyMx: document.getElementById('btn-verify-mx'),
+  btnPurgeDead: document.getElementById('btn-purge-dead'),
   btnCopySelected: document.getElementById('btn-copy-selected'),
   btnExportCsv: document.getElementById('btn-export-csv'),
   btnExportJson: document.getElementById('btn-export-json'),
@@ -328,6 +329,9 @@ function setupEventListeners() {
   // Live MX Verification Action
   if (elements.btnVerifyMx) {
     elements.btnVerifyMx.addEventListener('click', handleVerifyMxDeliverability);
+  }
+  if (elements.btnPurgeDead) {
+    elements.btnPurgeDead.addEventListener('click', handlePurgeDeadEmails);
   }
 
   // HUNTIQ CRM Actions
@@ -700,7 +704,8 @@ function updateTableHeaderVisibility() {
 }
 
 /**
- * Verifies live MX records and mail deliverability for displayed or selected leads
+ * Verifies live MX records and mail deliverability for displayed or selected leads.
+ * Automatically moves dead/undeliverable emails out of the active scraped list into a dedicated quarantine folder.
  */
 async function handleVerifyMxDeliverability() {
   const targetRecords = getExportDataset();
@@ -726,24 +731,115 @@ async function handleVerifyMxDeliverability() {
     // Merge verified results back into active records and session
     const verifiedMap = new Map(data.records.map(r => [r.email.toLowerCase(), r]));
 
-    state.records = state.records.map(r => {
+    const validRecords = [];
+    const deadRecords = [];
+
+    state.records.forEach(r => {
       const updated = verifiedMap.get(r.email.toLowerCase());
-      return updated ? { ...r, ...updated } : r;
+      const merged = updated ? { ...r, ...updated } : r;
+      if (merged.mxStatus === 'undeliverable') {
+        deadRecords.push(merged);
+      } else {
+        validRecords.push(merged);
+      }
     });
 
-    if (state.activeFolder === 'session') {
-      state.sessionRecords = [...state.records];
-    }
+    if (deadRecords.length > 0) {
+      // Move dead records out of the active scraped list
+      state.records = validRecords;
+      if (state.activeFolder === 'session') {
+        state.sessionRecords = validRecords;
+      }
+      deadRecords.forEach(r => state.selectedEmails.delete(r.email));
 
-    renderResults();
-    showToast(
-      `MX Check: ${data.deliverableCount} Deliverable, ${data.undeliverableCount} Undeliverable, ${data.disposableCount} Disposable`,
-      'success'
-    );
+      // Automatically store in "Dead / Bounced Emails" folder
+      saveDeadRecordsToQuarantineFolder(deadRecords);
+
+      updateKPIs();
+      populateDomainFilter();
+      renderResults();
+
+      showToast(
+        `🛡️ MX Verification: Kept ${validRecords.length} deliverable leads. Moved ${deadRecords.length} dead email(s) out of the list into "Dead / Bounced Emails" folder!`,
+        'success'
+      );
+    } else {
+      state.records = validRecords;
+      if (state.activeFolder === 'session') {
+        state.sessionRecords = validRecords;
+      }
+      updateKPIs();
+      populateDomainFilter();
+      renderResults();
+
+      showToast(
+        `🛡️ Verification complete: All ${validRecords.length} emails are deliverable! No dead emails found.`,
+        'success'
+      );
+    }
   } catch (err) {
     showToast(`Verification error: ${err.message}`, 'error');
   } finally {
     setLoadingState(false, elements.btnVerifyMx, '🛡️ Verify MX');
+  }
+}
+
+/**
+ * Moves any dead/undeliverable emails out of the active scraped list
+ */
+function handlePurgeDeadEmails() {
+  const deadRecords = state.records.filter(r => r.mxStatus === 'undeliverable');
+  if (deadRecords.length === 0) {
+    showToast('No dead emails detected in the current list. Click "🛡️ Verify MX" to test deliverability first.', 'info');
+    return;
+  }
+
+  const validRecords = state.records.filter(r => r.mxStatus !== 'undeliverable');
+  state.records = validRecords;
+  if (state.activeFolder === 'session') {
+    state.sessionRecords = validRecords;
+  }
+  deadRecords.forEach(r => state.selectedEmails.delete(r.email));
+
+  saveDeadRecordsToQuarantineFolder(deadRecords);
+  updateKPIs();
+  populateDomainFilter();
+  renderResults();
+
+  showToast(`🧹 Moved ${deadRecords.length} dead email(s) out of the list into "Dead / Bounced Emails" folder!`, 'success');
+}
+
+/**
+ * Automatically archives dead/undeliverable leads into a dedicated folder
+ */
+async function saveDeadRecordsToQuarantineFolder(deadRecords) {
+  if (!Array.isArray(deadRecords) || deadRecords.length === 0) return;
+  try {
+    let deadFolder = state.folders.find(f => f.name === 'Dead / Bounced Emails');
+    let folderId = deadFolder ? deadFolder.id : null;
+
+    if (!folderId) {
+      const createRes = await fetch('/api/folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Dead / Bounced Emails' })
+      });
+      const createData = await createRes.json();
+      if (createData.success && createData.folder) {
+        folderId = createData.folder.id;
+      }
+    }
+
+    if (folderId) {
+      await fetch(`/api/folders/${folderId}/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records: deadRecords })
+      });
+      await loadFolders();
+    }
+  } catch (err) {
+    console.warn('Failed to save dead emails to quarantine folder:', err);
   }
 }
 
@@ -1024,8 +1120,10 @@ function populateDomainFilter() {
 
 function getFilteredRecords() {
   return state.records.filter(r => {
-    // Type filter
-    if (state.typeFilter !== 'all' && r.type !== state.typeFilter) {
+    // Deliverable / Type filter
+    if (state.typeFilter === 'deliverable' && r.mxStatus !== 'deliverable') {
+      return false;
+    } else if (state.typeFilter !== 'all' && state.typeFilter !== 'deliverable' && r.type !== state.typeFilter) {
       return false;
     }
 
