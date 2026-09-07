@@ -13,7 +13,7 @@
     "dev": "ts-node src/cli.ts",
     "start": "ts-node src/server/index.ts",
     "server": "node dist/server/index.js",
-    "test": "node test_suite.js && node test_columns.js && node test_enrichment_mx.js && node test_server.js",
+    "test": "node test_suite.js && node test_columns.js && node test_enrichment_mx.js && node test_huntiq_sync.js && node test_server.js",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

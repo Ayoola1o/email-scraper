@@ -34,7 +34,7 @@ export async function verifyDomainMx(domain: string): Promise<VerificationResult
     const cfUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(cleanDomain)}&type=MX`;
     const cfRes = await fetch(cfUrl, {
       headers: { 'accept': 'application/dns-json' },
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(8000)
     });
 
     if (cfRes.ok) {
@@ -63,7 +63,7 @@ export async function verifyDomainMx(domain: string): Promise<VerificationResult
     const googleUrl = `https://dns.google/resolve?name=${encodeURIComponent(cleanDomain)}&type=MX`;
     const gRes = await fetch(googleUrl, {
       headers: { 'accept': 'application/json' },
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(8000)
     });
 
     if (gRes.ok) {

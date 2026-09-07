@@ -146,6 +146,20 @@ const elements = {
   btnClearResults: document.getElementById('btn-clear-results'),
   btnTryDemo: document.getElementById('btn-try-demo'),
 
+  // HUNTIQ CRM Sync Controls
+  btnSyncHuntiqModal: document.getElementById('btn-sync-huntiq-modal'),
+  huntiqModal: document.getElementById('huntiq-modal'),
+  btnCloseHuntiqModal: document.getElementById('btn-close-huntiq-modal'),
+  btnCancelHuntiqModal: document.getElementById('btn-cancel-huntiq-modal'),
+  huntiqUrlInput: document.getElementById('huntiq-url-input'),
+  huntiqWorkspaceInput: document.getElementById('huntiq-workspace-input'),
+  huntiqApiKeyInput: document.getElementById('huntiq-apikey-input'),
+  huntiqDraftToggle: document.getElementById('huntiq-draft-toggle'),
+  huntiqAutosyncToggle: document.getElementById('huntiq-autosync-toggle'),
+  huntiqSyncSummary: document.getElementById('huntiq-sync-summary'),
+  btnTestHuntiqConn: document.getElementById('btn-test-huntiq-conn'),
+  btnConfirmHuntiqSync: document.getElementById('btn-confirm-huntiq-sync'),
+
   toastContainer: document.getElementById('toast-container')
 };
 
@@ -316,6 +330,23 @@ function setupEventListeners() {
     elements.btnVerifyMx.addEventListener('click', handleVerifyMxDeliverability);
   }
 
+  // HUNTIQ CRM Actions
+  if (elements.btnSyncHuntiqModal) {
+    elements.btnSyncHuntiqModal.addEventListener('click', openHuntiqModal);
+  }
+  if (elements.btnCloseHuntiqModal) {
+    elements.btnCloseHuntiqModal.addEventListener('click', closeHuntiqModal);
+  }
+  if (elements.btnCancelHuntiqModal) {
+    elements.btnCancelHuntiqModal.addEventListener('click', closeHuntiqModal);
+  }
+  if (elements.btnTestHuntiqConn) {
+    elements.btnTestHuntiqConn.addEventListener('click', testHuntiqConnection);
+  }
+  if (elements.btnConfirmHuntiqSync) {
+    elements.btnConfirmHuntiqSync.addEventListener('click', confirmHuntiqSync);
+  }
+
   // Export Buttons
   elements.btnCopySelected.addEventListener('click', copySelectedToClipboard);
   elements.btnExportCsv.addEventListener('click', () => triggerExport('csv'));
@@ -473,6 +504,162 @@ async function handleConfirmSaveFolder() {
     showToast(`Saved ${targets.length} leads to folder "${saveData.folder.name}"!`, 'success');
   } catch (err) {
     showToast(`Error saving: ${err.message}`, 'error');
+  }
+}
+
+/* ==========================================================================
+   HUNTIQ CRM Ingestion Integration
+   ========================================================================== */
+
+function openHuntiqModal() {
+  const targets = getExportDataset();
+  if (targets.length === 0) {
+    showToast('No leads available to push. Please run a scrape first.', 'error');
+    return;
+  }
+
+  // Load saved configuration from localStorage
+  const savedUrl = localStorage.getItem('huntiq_url') || 'http://localhost:3001/api/v1/integrations/lead-ingest';
+  const savedWorkspace = localStorage.getItem('huntiq_workspace') || 'ws-default-001';
+  const savedApiKey = localStorage.getItem('huntiq_apikey') || '';
+  const savedDraft = localStorage.getItem('huntiq_draft') !== 'false';
+  const savedAutoSync = localStorage.getItem('huntiq_autosync') === 'true';
+
+  if (elements.huntiqUrlInput) elements.huntiqUrlInput.value = savedUrl;
+  if (elements.huntiqWorkspaceInput) elements.huntiqWorkspaceInput.value = savedWorkspace;
+  if (elements.huntiqApiKeyInput) elements.huntiqApiKeyInput.value = savedApiKey;
+  if (elements.huntiqDraftToggle) elements.huntiqDraftToggle.checked = savedDraft;
+  if (elements.huntiqAutosyncToggle) elements.huntiqAutosyncToggle.checked = savedAutoSync;
+
+  const isFiltered = state.selectedEmails.size > 0;
+  if (elements.huntiqSyncSummary) {
+    elements.huntiqSyncSummary.textContent = isFiltered
+      ? `Ready to push ${targets.length} selected lead(s) to HUNTIQ CRM.`
+      : `Ready to push all ${targets.length} visible lead(s) to HUNTIQ CRM.`;
+  }
+
+  elements.huntiqModal.style.display = 'flex';
+}
+
+function closeHuntiqModal() {
+  elements.huntiqModal.style.display = 'none';
+}
+
+async function testHuntiqConnection() {
+  const url = elements.huntiqUrlInput.value.trim();
+  const apiKey = elements.huntiqApiKeyInput.value.trim();
+  const workspaceId = elements.huntiqWorkspaceInput.value.trim();
+
+  if (!url) {
+    showToast('Please specify the HUNTIQ Ingest URL', 'error');
+    return;
+  }
+
+  setLoadingState(true, elements.btnTestHuntiqConn, 'Testing...');
+
+  try {
+    const res = await fetch('/api/sync/huntiq/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ huntiqApiUrl: url, apiKey, workspaceId })
+    });
+    const data = await res.json();
+
+    if (data.reachable) {
+      showToast(`✓ HUNTIQ reachable! (${data.message})`, 'success');
+    } else {
+      showToast(`✕ Could not reach HUNTIQ: ${data.error}`, 'error');
+    }
+  } catch (err) {
+    showToast(`Test failed: ${err.message}`, 'error');
+  } finally {
+    setLoadingState(false, elements.btnTestHuntiqConn, '🔌 Test Connection');
+  }
+}
+
+async function confirmHuntiqSync() {
+  const targets = getExportDataset();
+  if (targets.length === 0) {
+    showToast('No leads available to push', 'error');
+    closeHuntiqModal();
+    return;
+  }
+
+  const huntiqApiUrl = elements.huntiqUrlInput.value.trim();
+  const workspaceId = elements.huntiqWorkspaceInput.value.trim() || 'ws-default-001';
+  const apiKey = elements.huntiqApiKeyInput.value.trim();
+  const createOutreachDraft = elements.huntiqDraftToggle.checked;
+  const autoSync = elements.huntiqAutosyncToggle.checked;
+
+  if (!huntiqApiUrl) {
+    showToast('Please enter your HUNTIQ API URL', 'error');
+    return;
+  }
+
+  // Persist settings in localStorage
+  localStorage.setItem('huntiq_url', huntiqApiUrl);
+  localStorage.setItem('huntiq_workspace', workspaceId);
+  localStorage.setItem('huntiq_apikey', apiKey);
+  localStorage.setItem('huntiq_draft', String(createOutreachDraft));
+  localStorage.setItem('huntiq_autosync', String(autoSync));
+
+  setLoadingState(true, elements.btnConfirmHuntiqSync, `Pushing ${targets.length} leads...`);
+
+  try {
+    const res = await fetch('/api/sync/huntiq', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        records: targets,
+        huntiqApiUrl,
+        workspaceId,
+        apiKey,
+        createOutreachDraft,
+        source: 'EMAIL_SCRAPER_PRO'
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to push leads to HUNTIQ');
+    }
+
+    closeHuntiqModal();
+    const draftNotice = createOutreachDraft ? ' & created outreach drafts' : '';
+    showToast(`🚀 Successfully synced ${data.syncedCount} lead(s) to HUNTIQ CRM${draftNotice}!`, 'success');
+  } catch (err) {
+    showToast(`HUNTIQ Sync: ${err.message}`, 'error');
+  } finally {
+    setLoadingState(false, elements.btnConfirmHuntiqSync, '🚀 Push Leads to HUNTIQ');
+  }
+}
+
+async function triggerAutoHuntiqSync(newRecords) {
+  const huntiqApiUrl = localStorage.getItem('huntiq_url') || 'http://localhost:3001/api/v1/integrations/lead-ingest';
+  const workspaceId = localStorage.getItem('huntiq_workspace') || 'ws-default-001';
+  const apiKey = localStorage.getItem('huntiq_apikey') || '';
+  const createOutreachDraft = localStorage.getItem('huntiq_draft') !== 'false';
+
+  try {
+    const res = await fetch('/api/sync/huntiq', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        records: newRecords,
+        huntiqApiUrl,
+        workspaceId,
+        apiKey,
+        createOutreachDraft,
+        source: 'EMAIL_SCRAPER_AUTOSYNC'
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      showToast(`⚡ Auto-synced ${data.syncedCount} new lead(s) to HUNTIQ CRM!`, 'info');
+    }
+  } catch (err) {
+    console.warn('Auto-sync to HUNTIQ failed:', err);
   }
 }
 
@@ -799,6 +986,11 @@ function mergeRecords(newRecords) {
   updateKPIs();
   populateDomainFilter();
   renderResults();
+
+  // Auto-forward to HUNTIQ CRM if auto-sync is enabled
+  if (localStorage.getItem('huntiq_autosync') === 'true' && newRecords.length > 0) {
+    triggerAutoHuntiqSync(newRecords);
+  }
 }
 
 function updateKPIs() {

@@ -352,10 +352,11 @@ app.post('/api/export', (req: Request, res: Response) => {
 
 /**
  * Synchronizes scraped email records directly into HUNTIQ CRM & Outreach queue
+ * Adheres strictly to the HUNTIQ Lead Ingestion API Specification
  */
 app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
   try {
-    const { records, huntiqApiUrl, apiKey, workspaceId } = req.body;
+    const { records, huntiqApiUrl, apiKey, workspaceId, createOutreachDraft = true, source = 'EXTERNAL_EMAIL_SCRAPER' } = req.body;
     if (!Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ error: 'Valid records array is required' });
     }
@@ -363,26 +364,141 @@ app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
     const endpoint = huntiqApiUrl || process.env.HUNTIQ_API_URL || 'http://localhost:3001/api/v1/integrations/lead-ingest';
     const targetWorkspace = workspaceId || process.env.HUNTIQ_WORKSPACE_ID || 'ws-default-001';
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-workspace-id': targetWorkspace,
-        ...(apiKey ? { 'x-huntiq-api-key': apiKey } : {})
-      },
-      body: JSON.stringify({
-        source: 'EXTERNAL_EMAIL_SCRAPER',
-        createOutreachDraft: true,
-        leads: records
-      })
+    // Format records into HUNTIQ Lead format
+    const formattedLeads = records.map((r: any) => {
+      let firstName: string | undefined;
+      let lastName: string | undefined;
+
+      if (r.name) {
+        const parts = String(r.name).trim().split(/\s+/);
+        firstName = parts[0];
+        if (parts.length > 1) {
+          lastName = parts.slice(1).join(' ');
+        }
+      } else if (r.email && r.email.includes('@')) {
+        const localParts = r.email.split('@')[0].split(/[._\-+]+/).filter(Boolean);
+        if (localParts.length > 0) {
+          firstName = localParts[0].charAt(0).toUpperCase() + localParts[0].slice(1).toLowerCase();
+          if (localParts.length > 1) {
+            lastName = localParts.slice(1).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
+          }
+        }
+      }
+
+      // Infer company name if not explicitly present
+      let companyName = r.companyName;
+      if (!companyName && r.domain) {
+        const domainBase = r.domain.replace(/\.[a-z]{2,}$/i, '');
+        companyName = domainBase.charAt(0).toUpperCase() + domainBase.slice(1);
+      }
+
+      const website = r.website || (r.domain ? `https://${r.domain}` : undefined);
+
+      return {
+        email: r.email,
+        name: r.name || (firstName && lastName ? `${firstName} ${lastName}` : firstName),
+        firstName,
+        lastName,
+        jobTitle: r.jobTitle || undefined,
+        companyName,
+        domain: r.domain || undefined,
+        website,
+        phone: r.phone || undefined,
+        sourceUrl: r.sourceUrl || undefined,
+        mxStatus: r.mxStatus || 'unverified',
+        socials: r.socials && (r.socials.linkedin || r.socials.twitter || r.socials.github) ? r.socials : undefined,
+        notes: r.contextSnippet || r.notes || `Discovered via ${source}`
+      };
     });
 
-    const data = await response.json();
-    return res.status(response.status).json(data);
+    const huntiqPayload = {
+      source,
+      createOutreachDraft: Boolean(createOutreachDraft),
+      leads: formattedLeads
+    };
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-workspace-id': targetWorkspace
+    };
+    if (apiKey) {
+      headers['x-huntiq-api-key'] = apiKey;
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(huntiqPayload),
+      signal: AbortSignal.timeout(15000)
+    });
+
+    const responseText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = { rawResponse: responseText };
+    }
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        success: false,
+        statusCode: response.status,
+        error: data.error || data.message || `HUNTIQ returned HTTP ${response.status}`,
+        details: data
+      });
+    }
+
+    return res.json({
+      success: true,
+      syncedCount: formattedLeads.length,
+      workspace: targetWorkspace,
+      createOutreachDraft: Boolean(createOutreachDraft),
+      huntiqResponse: data
+    });
   } catch (err: any) {
-    return res.status(500).json({
+    const isConnRefused = err.cause && err.cause.code === 'ECONNREFUSED';
+    return res.status(502).json({
       success: false,
-      error: `Failed to push leads to HUNTIQ: ${err.message}`
+      error: isConnRefused
+        ? `Cannot connect to HUNTIQ at ${req.body.huntiqApiUrl || 'http://localhost:3001'}. Is your HUNTIQ app running?`
+        : `HUNTIQ sync error: ${err.message}`
+    });
+  }
+});
+
+/**
+ * Quick connection health check for HUNTIQ API endpoint
+ */
+app.post('/api/sync/huntiq/test', async (req: Request, res: Response) => {
+  try {
+    const { huntiqApiUrl = 'http://localhost:3001/api/v1/integrations/lead-ingest', apiKey, workspaceId = 'ws-default-001' } = req.body;
+    
+    // Test with empty leads array or ping
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-workspace-id': workspaceId
+    };
+    if (apiKey) headers['x-huntiq-api-key'] = apiKey;
+
+    const response = await fetch(huntiqApiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ source: 'PING_CHECK', leads: [] }),
+      signal: AbortSignal.timeout(5000)
+    });
+
+    res.json({
+      success: true,
+      reachable: true,
+      status: response.status,
+      message: `HUNTIQ server responded (HTTP ${response.status})`
+    });
+  } catch (err: any) {
+    res.json({
+      success: false,
+      reachable: false,
+      error: err.message
     });
   }
 });

@@ -265,6 +265,11 @@
             🛡️ Verify MX
           </button>
 
+          <!-- HUNTIQ CRM Sync Button -->
+          <button id="btn-sync-huntiq-modal" class="btn btn-primary btn-sm" title="Push leads directly into HUNTIQ CRM & Outreach inbox">
+            🚀 Sync to HUNTIQ
+          </button>
+
           <span id="selected-count-text" style="font-size: 13px; color: var(--text-faint); margin-right: 4px;">0 selected of 0</span>
           
           <button id="btn-copy-selected" class="btn btn-secondary btn-sm" title="Copy emails to clipboard">
@@ -452,6 +457,68 @@
       </div>
       <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
         <button id="btn-apply-columns" class="btn btn-primary btn-sm">Apply Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUNTIQ CRM Lead Ingestion Modal -->
+  <div class="modal-backdrop" id="huntiq-modal" style="display: none;">
+    <div class="modal-card" style="max-width: 540px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">📡</span>
+          <h3 class="modal-title">Push to HUNTIQ CRM</h3>
+        </div>
+        <button id="btn-close-huntiq-modal" class="btn-icon" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          Directly ingest verified leads, contact details, and deliverability status into your <strong>HUNTIQ CRM</strong> workspace.
+        </p>
+        
+        <div style="margin-bottom: 14px;">
+          <label class="form-label" for="huntiq-url-input">HUNTIQ Ingest API Endpoint</label>
+          <input type="url" id="huntiq-url-input" class="text-input" value="http://localhost:3001/api/v1/integrations/lead-ingest" placeholder="http://localhost:3001/api/v1/integrations/lead-ingest" />
+          <small style="color: var(--text-faint); font-size: 11px; display: block; margin-top: 4px;">
+            Default local: <code>http://localhost:3001/api/v1/integrations/lead-ingest</code> &bull; Or your Vercel URL
+          </small>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+          <div>
+            <label class="form-label" for="huntiq-workspace-input">Workspace ID</label>
+            <input type="text" id="huntiq-workspace-input" class="text-input" value="ws-default-001" placeholder="ws-default-001" />
+          </div>
+          <div>
+            <label class="form-label" for="huntiq-apikey-input">API Key (Optional)</label>
+            <input type="password" id="huntiq-apikey-input" class="text-input" placeholder="hnt_live_..." />
+          </div>
+        </div>
+
+        <div style="margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px;">
+          <label class="switch-label">
+            <input type="checkbox" id="huntiq-draft-toggle" checked />
+            <span><strong>Create Outreach Draft</strong> in HUNTIQ inbox for user review</span>
+          </label>
+          <label class="switch-label">
+            <input type="checkbox" id="huntiq-autosync-toggle" />
+            <span><strong>Auto-sync new leads</strong> automatically when scrapes complete</span>
+          </label>
+        </div>
+
+        <div class="telemetry-item" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
+          <span style="font-size: 12px; color: var(--text-muted);">Payload Summary:</span>
+          <strong id="huntiq-sync-summary" style="font-size: 13px; color: #a5b4fc;">Ready to push 0 leads to HUNTIQ</strong>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button id="btn-test-huntiq-conn" class="btn btn-secondary btn-sm" title="Test if HUNTIQ endpoint is reachable">
+          🔌 Test Connection
+        </button>
+        <div style="display: flex; gap: 10px;">
+          <button id="btn-cancel-huntiq-modal" class="btn btn-secondary btn-sm">Cancel</button>
+          <button id="btn-confirm-huntiq-sync" class="btn btn-primary btn-sm">🚀 Push Leads to HUNTIQ</button>
+        </div>
       </div>
     </div>
   </div>
