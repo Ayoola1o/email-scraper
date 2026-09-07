@@ -11,41 +11,77 @@ export interface Folder {
   records: ScrapedEmailRecord[];
 }
 
-const DATA_DIR = path.resolve(__dirname, '../../data');
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
+const LOCAL_DATA_DIR = path.resolve(__dirname, '../../data');
+const DATA_DIR = isServerless ? path.join('/tmp', 'email-scraper-data') : LOCAL_DATA_DIR;
 const FOLDERS_FILE = path.join(DATA_DIR, 'folders.json');
 
+// In-memory fallback in case of strict ephemeral storage constraints
+let memoryFolders: Folder[] | null = null;
+
 function ensureStorage(): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(FOLDERS_FILE)) {
-    // Initial sample folder
-    const defaultFolders: Folder[] = [
-      {
-        id: 'default',
-        name: 'General Leads',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        records: []
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(FOLDERS_FILE)) {
+      // Check if we can seed from bundled local data
+      const bundledFile = path.join(LOCAL_DATA_DIR, 'folders.json');
+      if (fs.existsSync(bundledFile)) {
+        const seedData = fs.readFileSync(bundledFile, 'utf-8');
+        fs.writeFileSync(FOLDERS_FILE, seedData, 'utf-8');
+        return;
       }
-    ];
-    fs.writeFileSync(FOLDERS_FILE, JSON.stringify(defaultFolders, null, 2), 'utf-8');
+
+      // Initial sample folder
+      const defaultFolders: Folder[] = [
+        {
+          id: 'default',
+          name: 'General Leads',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          records: []
+        }
+      ];
+      fs.writeFileSync(FOLDERS_FILE, JSON.stringify(defaultFolders, null, 2), 'utf-8');
+    }
+  } catch (err) {
+    // If fs write fails on restricted environment, use memory storage
+    if (!memoryFolders) {
+      memoryFolders = [
+        {
+          id: 'default',
+          name: 'General Leads',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          records: []
+        }
+      ];
+    }
   }
 }
 
 function loadFolders(): Folder[] {
   ensureStorage();
   try {
-    const raw = fs.readFileSync(FOLDERS_FILE, 'utf-8');
-    return JSON.parse(raw);
+    if (fs.existsSync(FOLDERS_FILE)) {
+      const raw = fs.readFileSync(FOLDERS_FILE, 'utf-8');
+      return JSON.parse(raw);
+    }
   } catch {
-    return [];
+    // Fall through to memory
   }
+  return memoryFolders || [];
 }
 
 function saveFolders(folders: Folder[]): void {
   ensureStorage();
-  fs.writeFileSync(FOLDERS_FILE, JSON.stringify(folders, null, 2), 'utf-8');
+  memoryFolders = folders;
+  try {
+    fs.writeFileSync(FOLDERS_FILE, JSON.stringify(folders, null, 2), 'utf-8');
+  } catch {
+    // Fallback to memory
+  }
 }
 
 /**
