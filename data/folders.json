@@ -1,0 +1,24 @@
+[
+  {
+    "id": "default",
+    "name": "General Leads",
+    "createdAt": "2026-09-07T17:53:06.435Z",
+    "updatedAt": "2026-09-07T17:53:06.438Z",
+    "records": []
+  },
+  {
+    "id": "ec648abb-64e4-4ef8-82b6-5cc999153e77",
+    "name": "Archive Test Leads",
+    "createdAt": "2026-09-07T17:53:06.539Z",
+    "updatedAt": "2026-09-07T17:53:06.553Z",
+    "records": [
+      {
+        "email": "lead1@archive.org",
+        "domain": "archive.org",
+        "type": "personal",
+        "sourceUrl": "http://test",
+        "discoveredAt": "2026-09-07T17:53:06.545Z"
+      }
+    ]
+  }
+]

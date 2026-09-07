@@ -1,6 +1,22 @@
-import { Browser, Page } from '../types/browser';
+import { Browser } from '../types/browser';
 import { scrapeEmailsFromPage } from './webpageScraper';
-import { extractAndNormalizeEmails } from '../utils/emailExtractor';
+import { extractAndNormalizeEmails, extractEmailRecordsFromHtml, extractPageTitle } from '../utils/emailExtractor';
+import { ScrapedEmailRecord } from '../types/record';
+
+/**
+ * Real-time crawl progress event data
+ */
+export interface CrawlProgress {
+  url: string;
+  depth: number;
+  pagesVisited: number;
+  maxPages: number;
+  queueLength: number;
+  emailsFoundOnPage: number;
+  totalUniqueEmails: number;
+  pageTitle?: string;
+  statusCode?: number;
+}
 
 /**
  * Options for website crawling
@@ -11,10 +27,15 @@ export interface WebsiteCrawlerOptions {
   sameDomainOnly?: boolean;
   waitUntil?: 'load' | 'domcontentloaded' | 'networkidle';
   timeout?: number;
+  delayMs?: number;
   useBrowser?: boolean;
   browser?: Browser;
+  userAgent?: string;
   onPageVisited?: (url: string, depth: number, emailCount: number) => void;
+  onProgress?: (progress: CrawlProgress) => void;
+  onRecordFound?: (record: ScrapedEmailRecord) => void;
   onError?: (url: string, error: Error) => void;
+  isCancelled?: () => boolean;
 }
 
 /**
@@ -23,7 +44,7 @@ export interface WebsiteCrawlerOptions {
 function getDomain(url: string): string {
   try {
     const urlObj = new URL(url);
-    return urlObj.hostname;
+    return urlObj.hostname.toLowerCase();
   } catch {
     return '';
   }
@@ -37,6 +58,15 @@ function normalizeUrl(url: string, baseUrl: string): string | null {
     const base = new URL(baseUrl);
     const resolved = new URL(url, base);
     resolved.hash = ''; // Remove fragments
+    // Only accept http and https protocols
+    if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') {
+      return null;
+    }
+    // Skip static assets
+    const pathname = resolved.pathname.toLowerCase();
+    if (pathname.match(/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|woff|woff2|ttf|pdf|zip|mp4|webm)$/)) {
+      return null;
+    }
     return resolved.href;
   } catch {
     return null;
@@ -52,7 +82,11 @@ function extractLinks(html: string, baseUrl: string): Set<string> {
   let match;
 
   while ((match = linkRegex.exec(html)) !== null) {
-    const normalized = normalizeUrl(match[1], baseUrl);
+    const href = match[1].trim();
+    if (!href || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) {
+      continue;
+    }
+    const normalized = normalizeUrl(href, baseUrl);
     if (normalized) {
       links.add(normalized);
     }
@@ -61,32 +95,45 @@ function extractLinks(html: string, baseUrl: string): Set<string> {
   return links;
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 /**
- * Crawls a website and scrapes emails from all pages
+ * Crawls a website and returns detailed ScrapedEmailRecords
  */
-export async function scrapeEmailsFromWebsite(
+export async function scrapeEmailRecordsFromWebsite(
   startUrl: string,
   options: WebsiteCrawlerOptions = {}
-): Promise<Set<string>> {
+): Promise<{ records: ScrapedEmailRecord[]; pagesVisited: number; errors: number }> {
   const {
     maxDepth = 3,
     maxPages = 50,
     sameDomainOnly = true,
     waitUntil = 'load',
-    timeout = 30000,
+    timeout = 15000,
+    delayMs = 200,
     useBrowser = false,
     browser,
+    userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     onPageVisited,
+    onProgress,
+    onRecordFound,
     onError,
+    isCancelled,
   } = options;
 
-  const allEmails = new Set<string>();
+  const recordsMap = new Map<string, ScrapedEmailRecord>();
   const visited = new Set<string>();
   const toVisit: Array<{ url: string; depth: number }> = [{ url: startUrl, depth: 0 }];
   const startDomain = getDomain(startUrl);
+  let errorCount = 0;
 
   while (toVisit.length > 0 && visited.size < maxPages) {
-    const { url, depth } = toVisit.shift()!;
+    if (isCancelled && isCancelled()) {
+      break;
+    }
+
+    const current = toVisit.shift()!;
+    const { url, depth } = current;
 
     if (visited.has(url)) {
       continue;
@@ -103,38 +150,82 @@ export async function scrapeEmailsFromWebsite(
 
     visited.add(url);
 
+    // Rate limiting delay between crawls
+    if (delayMs > 0 && visited.size > 1) {
+      await sleep(delayMs);
+    }
+
     try {
-      let emails: Set<string>;
-      let html: string;
+      let pageTitle = '';
+      let html = '';
+      let pageRecords: ScrapedEmailRecord[] = [];
 
       if (useBrowser && browser) {
         const page = await browser.newPage();
         try {
           await page.goto(url, { waitUntil, timeout });
           html = await page.content();
-          emails = await scrapeEmailsFromPage(page, url, { waitUntil, timeout });
+          pageTitle = extractPageTitle(html);
+          pageRecords = extractEmailRecordsFromHtml(html, url, pageTitle, depth);
         } finally {
           await page.close();
         }
       } else {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
         const response = await fetch(url, {
+          signal: controller.signal,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'User-Agent': userAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           },
         });
+
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(`HTTP ${response.status} ${response.statusText}`);
         }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+          continue;
+        }
+
         html = await response.text();
-        emails = extractAndNormalizeEmails(html);
+        pageTitle = extractPageTitle(html);
+        pageRecords = extractEmailRecordsFromHtml(html, url, pageTitle, depth);
       }
 
-      // Merge emails
-      emails.forEach((email) => allEmails.add(email));
+      // Record newly found emails
+      let newEmailsCount = 0;
+      for (const rec of pageRecords) {
+        if (!recordsMap.has(rec.email)) {
+          recordsMap.set(rec.email, rec);
+          newEmailsCount++;
+          if (onRecordFound) {
+            onRecordFound(rec);
+          }
+        }
+      }
 
-      // Notify about page visit
       if (onPageVisited) {
-        onPageVisited(url, depth, emails.size);
+        onPageVisited(url, depth, pageRecords.length);
+      }
+
+      if (onProgress) {
+        onProgress({
+          url,
+          depth,
+          pagesVisited: visited.size,
+          maxPages,
+          queueLength: toVisit.length,
+          emailsFoundOnPage: pageRecords.length,
+          totalUniqueEmails: recordsMap.size,
+          pageTitle,
+          statusCode: 200,
+        });
       }
 
       // Extract links for next depth level
@@ -142,21 +233,48 @@ export async function scrapeEmailsFromWebsite(
         const links = extractLinks(html, url);
         links.forEach((link) => {
           if (!visited.has(link) && (!sameDomainOnly || getDomain(link) === startDomain)) {
-            toVisit.push({ url: link, depth: depth + 1 });
+            // Avoid queue duplicates
+            if (!toVisit.some((item) => item.url === link)) {
+              toVisit.push({ url: link, depth: depth + 1 });
+            }
           }
         });
       }
     } catch (error) {
+      errorCount++;
       const errorObj = error instanceof Error ? error : new Error(String(error));
       if (onError) {
         onError(url, errorObj);
-      } else {
-        console.error(`Error scraping ${url}:`, errorObj.message);
       }
-      // Continue with other URLs
+      if (onProgress) {
+        onProgress({
+          url,
+          depth,
+          pagesVisited: visited.size,
+          maxPages,
+          queueLength: toVisit.length,
+          emailsFoundOnPage: 0,
+          totalUniqueEmails: recordsMap.size,
+          statusCode: 500,
+        });
+      }
     }
   }
 
-  return allEmails;
+  return {
+    records: Array.from(recordsMap.values()),
+    pagesVisited: visited.size,
+    errors: errorCount,
+  };
 }
 
+/**
+ * Crawls a website and scrapes emails from all pages (backwards-compatible Set<string> return)
+ */
+export async function scrapeEmailsFromWebsite(
+  startUrl: string,
+  options: WebsiteCrawlerOptions = {}
+): Promise<Set<string>> {
+  const result = await scrapeEmailRecordsFromWebsite(startUrl, options);
+  return new Set(result.records.map(r => r.email));
+}

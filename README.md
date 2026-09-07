@@ -271,12 +271,71 @@ npm run scrape page https://example.com
 npm run scrape website https://example.com
 ```
 
+### Web Application & Live Dashboard
+
+Email Scraper includes a full-featured interactive Web Application with real-time crawling feedback, data filtering, and one-click formatted downloads:
+
+```bash
+# Start the web app (development)
+npm start
+
+# Or in production (after npm run build)
+npm run server
+```
+
+Open your browser to:
+- **Web Dashboard:** [http://localhost:3000](http://localhost:3000)
+- **Built-in Demo Site:** [http://localhost:3000/api/demo](http://localhost:3000/api/demo)
+
+#### Dashboard Highlights:
+- **4 Extraction Modes:** Single Page, Deep Website Crawler, Multi-URL Batch, and Raw Text / Newsletter.
+- **Real-Time Crawl Telemetry:** Live SSE streaming progress bar showing active page, depth, queue size, and live hits.
+- **Smart Enrichment:** Detects obfuscated emails (`[at]`, `&#64;`, `mailto:`), classifies Personal vs Role-based (`support@`, `sales@`), extracts surrounding context snippets.
+- **Good Format Exporters:**
+  - **CSV (Excel-Ready):** UTF-8 BOM encoding so Microsoft Excel opens it cleanly without character issues.
+  - **JSON:** Pretty-printed structured JSON with metadata, titles, and timestamps.
+  - **TXT:** Clean line-by-line unique email list for CRM/mailer imports.
+  - **vCard (.vcf):** Electronic contact cards for direct import into Google Contacts, Apple Contacts, or Outlook.
+
+### CLI Usage – Formatted Export & Web Server
+
+```bash
+# Scrape single page and output Excel-compatible CSV
+npm run scrape page https://example.com --format csv --output contacts.csv
+
+# Crawl website and export as JSON
+npm run scrape website https://example.com -d 2 -p 20 --format json --output leads.json
+
+# Launch the Web App from CLI
+node dist/cli.js serve -p 3000
+```
+
+### REST API Endpoints
+
+- `GET /api/health` - System status and active crawl count
+- `POST /api/scrape/page` - Scrape a single URL (`{ url, timeout }`)
+- `POST /api/scrape/crawl` - Start deep website crawler (`{ url, maxDepth, maxPages, delayMs }`)
+- `GET /api/scrape/crawl/stream/:jobId` - Live Server-Sent Events (SSE) telemetry stream
+- `POST /api/scrape/crawl/cancel/:jobId` - Abort an ongoing crawl
+- `POST /api/scrape/batch` - Scrape multiple URLs (`{ urls: [...] }`)
+- `POST /api/scrape/text` - Direct extraction from raw text or HTML (`{ text: "..." }`)
+- `POST /api/export` - Export records into CSV, JSON, TXT, or VCF (`{ records: [...], format: "csv" }`)
+- `GET /api/demo` - Built-in offline mock directory with obfuscated and role test fixtures
+
+### Running Tests
+
+```bash
+npm test
+```
+
 ### Project Structure
 
 - `/src` - TypeScript source code
   - `/scrapers` - Scraping implementations (HTTP, webpage, website crawler)
-  - `/utils` - Utility functions (email extraction, browser factory)
+  - `/server` - Express API server and SSE streaming
+  - `/utils` - Utility functions (email extraction, formatters, browser factory)
   - `/types` - TypeScript type definitions
+- `/public` - Modern Glassmorphism Web Dashboard (HTML, CSS, JS)
 - `/dist` - Compiled JavaScript output
 - `cli.ts` - Command-line interface implementation
 

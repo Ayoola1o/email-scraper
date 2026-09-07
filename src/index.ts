@@ -2,10 +2,59 @@
  * Email Scraper - A TypeScript library for scraping emails from webpages and websites
  */
 
-export { extractEmails, normalizeEmail, extractAndNormalizeEmails } from './utils/emailExtractor';
-export { scrapeEmailsFromUrl, type HttpScraperOptions } from './scrapers/httpScraper';
-export { scrapeEmailsFromPage, type WebpageScraperOptions } from './scrapers/webpageScraper';
-export { scrapeEmailsFromWebsite, type WebsiteCrawlerOptions } from './scrapers/websiteCrawler';
+export {
+  extractEmails,
+  normalizeEmail,
+  extractAndNormalizeEmails,
+  extractEmailRecordsFromHtml,
+  extractPhoneNumbersFromHtml,
+  extractSocialProfiles,
+  detectJobTitle,
+  inferNameFromEmail,
+  isRoleBasedEmail,
+  isDisposableDomain,
+  decodeObfuscation,
+  hasValidTld,
+  extractPageTitle
+} from './utils/emailExtractor';
+
+export {
+  verifyDomainMx,
+  verifyEmailRecords
+} from './utils/verifier';
+
+export {
+  scrapeEmailsFromUrl,
+  scrapeEmailRecordsFromUrl,
+  type HttpScraperOptions
+} from './scrapers/httpScraper';
+
+export {
+  scrapeEmailsFromPage,
+  type WebpageScraperOptions
+} from './scrapers/webpageScraper';
+
+export {
+  scrapeEmailsFromWebsite,
+  scrapeEmailRecordsFromWebsite,
+  type WebsiteCrawlerOptions,
+  type CrawlProgress
+} from './scrapers/websiteCrawler';
+
+export {
+  toCSV,
+  toJSON,
+  toPlainText,
+  toVCard,
+  formatRecords
+} from './utils/formatters';
+
+export type {
+  ScrapedEmailRecord,
+  ScrapeSessionSummary,
+  ExportFormat
+} from './types/record';
+
 export type { Browser, Page, BrowserFactory } from './types/browser';
 
 /**
@@ -24,6 +73,14 @@ export class EmailScraper {
   async scrapeFromUrl(url: string, options?: import('./scrapers/httpScraper').HttpScraperOptions): Promise<Set<string>> {
     const { scrapeEmailsFromUrl } = await import('./scrapers/httpScraper');
     return scrapeEmailsFromUrl(url, options);
+  }
+
+  /**
+   * Scrapes detailed records from a single webpage
+   */
+  async scrapeRecordsFromUrl(url: string, options?: import('./scrapers/httpScraper').HttpScraperOptions) {
+    const { scrapeEmailRecordsFromUrl } = await import('./scrapers/httpScraper');
+    return scrapeEmailRecordsFromUrl(url, options);
   }
 
   /**
@@ -52,5 +109,19 @@ export class EmailScraper {
       browser: this.browser,
     });
   }
-}
 
+  /**
+   * Scrapes detailed email records from an entire website by crawling
+   */
+  async scrapeRecordsFromWebsite(
+    url: string,
+    options?: Omit<import('./scrapers/websiteCrawler').WebsiteCrawlerOptions, 'browser'>
+  ) {
+    const { scrapeEmailRecordsFromWebsite } = await import('./scrapers/websiteCrawler');
+    return scrapeEmailRecordsFromWebsite(url, {
+      ...options,
+      useBrowser: !!this.browser,
+      browser: this.browser,
+    });
+  }
+}
