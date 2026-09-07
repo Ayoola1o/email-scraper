@@ -140,7 +140,7 @@
             </div>
             <div>
               <label class="form-label" for="input-crawl-pages">Max Pages Limit</label>
-              <input type="number" id="input-crawl-pages" class="text-input" value="30" min="2" max="200" />
+              <input type="number" id="input-crawl-pages" class="text-input" value="100" min="1" max="10000" placeholder="e.g. 500" />
             </div>
             <div>
               <label class="form-label" for="input-crawl-delay">Politeness Delay (ms)</label>
@@ -329,11 +329,13 @@
       <div class="pagination-bar" id="pagination-bar" style="display: none;">
         <div class="pagination-info">
           <label class="form-label" style="margin-bottom: 0; margin-right: 8px;">Show per page:</label>
-          <select id="per-page-select" class="select-input btn-sm" style="width: 100px;">
+          <select id="per-page-select" class="select-input btn-sm" style="width: 110px;">
             <option value="10">10 / page</option>
             <option value="25">25 / page</option>
             <option value="50" selected>50 / page</option>
             <option value="100">100 / page</option>
+            <option value="200">200 / page</option>
+            <option value="500">500 / page</option>
             <option value="all">Show All</option>
           </select>
           <span id="pagination-status" style="margin-left: 14px; font-size: 13px; color: var(--text-muted);">
