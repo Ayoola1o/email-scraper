@@ -257,102 +257,124 @@ export async function safeFetch(
   let currentUrl = initialUrl;
   let redirectCount = 0;
 
-  while (true) {
-    // 1. SSRF validation of target URL
-    const validation = await validateSafeScrapeUrl(currentUrl, { allowLocalhost });
-    if (!validation.safe) {
-      throw new Error(`SSRF blocked request to "${currentUrl}": ${validation.error}`);
-    }
+  // Lifecycle-wide timeout controller covering request, redirects, and streaming body
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeout);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    let response: Response;
-    try {
-      response = await fetch(currentUrl, {
-        method: 'GET',
-        redirect: 'manual', // Crucial: inspect every redirect hop manually!
-        signal: controller.signal,
-        headers: {
-          'User-Agent': userAgent,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          ...headers
-        }
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    // 2. Handle redirects (301, 302, 303, 307, 308)
-    if ([301, 302, 303, 307, 308].includes(response.status)) {
-      redirectCount++;
-      if (redirectCount > maxRedirects) {
-        throw new Error(`Too many redirects (exceeded limit of ${maxRedirects})`);
+  try {
+    while (true) {
+      // 1. SSRF validation of target URL
+      const validation = await validateSafeScrapeUrl(currentUrl, { allowLocalhost });
+      if (!validation.safe) {
+        throw new Error(`SSRF blocked request to "${currentUrl}": ${validation.error}`);
       }
 
-      const location = response.headers.get('location');
-      if (!location) {
-        throw new Error(`Redirect HTTP ${response.status} returned without Location header`);
-      }
-
-      // Resolve relative redirect destination against currentUrl
-      currentUrl = new URL(location, currentUrl).href;
-      continue;
-    }
-
-    // 3. Early check on Content-Length header
-    const contentLength = response.headers.get('content-length');
-    if (contentLength && parseInt(contentLength, 10) > maxBytes) {
-      throw new Error(`Response size ${contentLength} bytes exceeds limit of ${maxBytes} bytes`);
-    }
-
-    // 4. Stream response body and count bytes to protect memory
-    if (!response.body) {
-      const text = await response.text();
-      return { text, status: response.status, finalUrl: currentUrl, headers: response.headers };
-    }
-
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let receivedBytes = 0;
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          receivedBytes += value.length;
-          if (receivedBytes > maxBytes) {
-            await reader.cancel();
-            throw new Error(`Response size exceeded limit of ${maxBytes} bytes`);
+      let response: Response;
+      try {
+        response = await fetch(currentUrl, {
+          method: 'GET',
+          redirect: 'manual', // Crucial: inspect every redirect hop manually!
+          signal: controller.signal,
+          headers: {
+            'User-Agent': userAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            ...headers
           }
-          chunks.push(value);
+        });
+      } catch (fetchErr: any) {
+        if (timedOut || fetchErr.name === 'AbortError' || controller.signal.aborted) {
+          throw new Error(`Request timed out after ${timeout}ms`);
+        }
+        throw fetchErr;
+      }
+
+      // 2. Handle redirects (301, 302, 303, 307, 308)
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        redirectCount++;
+        if (redirectCount > maxRedirects) {
+          throw new Error(`Too many redirects (exceeded limit of ${maxRedirects})`);
+        }
+
+        const location = response.headers.get('location');
+        if (!location) {
+          throw new Error(`Redirect HTTP ${response.status} returned without Location header`);
+        }
+
+        // Resolve relative redirect destination against currentUrl
+        currentUrl = new URL(location, currentUrl).href;
+        continue;
+      }
+
+      // 3. Early check on Content-Length header
+      const contentLength = response.headers.get('content-length');
+      if (contentLength && parseInt(contentLength, 10) > maxBytes) {
+        throw new Error(`Response size ${contentLength} bytes exceeds limit of ${maxBytes} bytes`);
+      }
+
+      // 4. Stream response body and count bytes to protect memory
+      if (!response.body) {
+        try {
+          const text = await response.text();
+          return { text, status: response.status, finalUrl: currentUrl, headers: response.headers };
+        } catch (textErr: any) {
+          if (timedOut || textErr.name === 'AbortError' || controller.signal.aborted) {
+            throw new Error(`Request timed out after ${timeout}ms`);
+          }
+          throw textErr;
         }
       }
-    } catch (streamErr: any) {
-      if (streamErr.message?.includes('limit of')) {
-        throw streamErr;
+
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let receivedBytes = 0;
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            receivedBytes += value.length;
+            if (receivedBytes > maxBytes) {
+              await reader.cancel();
+              throw new Error(`Response size exceeded limit of ${maxBytes} bytes`);
+            }
+            chunks.push(value);
+          }
+        }
+      } catch (streamErr: any) {
+        if (streamErr.message?.includes('limit of')) {
+          throw streamErr;
+        }
+        if (timedOut || streamErr.name === 'AbortError' || controller.signal.aborted) {
+          throw new Error(`Request timed out after ${timeout}ms`);
+        }
+        throw new Error(`Failed reading response stream: ${streamErr.message}`);
       }
-      throw new Error(`Failed reading response stream: ${streamErr.message}`);
+
+      // Concatenate chunks and decode into string
+      const totalBuffer = new Uint8Array(receivedBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        totalBuffer.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      const decoder = new TextDecoder('utf-8');
+      const text = decoder.decode(totalBuffer);
+
+      return {
+        text,
+        status: response.status,
+        finalUrl: currentUrl,
+        headers: response.headers
+      };
     }
-
-    // Concatenate chunks and decode into string
-    const totalBuffer = new Uint8Array(receivedBytes);
-    let offset = 0;
-    for (const chunk of chunks) {
-      totalBuffer.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    const decoder = new TextDecoder('utf-8');
-    const text = decoder.decode(totalBuffer);
-
-    return {
-      text,
-      status: response.status,
-      finalUrl: currentUrl,
-      headers: response.headers
-    };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

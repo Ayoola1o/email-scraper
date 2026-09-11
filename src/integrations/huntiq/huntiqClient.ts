@@ -115,16 +115,38 @@ export class HuntIQClient {
         };
       }
 
-      const reachable = response.ok || response.status < 500;
+      let responseBody: any = null;
+      try {
+        const text = await response.text();
+        responseBody = JSON.parse(text);
+      } catch {
+        // empty or non-JSON body
+      }
+
+      // Authenticated is true ONLY when the HUNTIQ server actually confirms authentication (HTTP 2xx, not negated by body)
+      if (response.ok) {
+        const isExplicitlyUnauthenticated = responseBody && (responseBody.authenticated === false || responseBody.success === false);
+        const isConfirmed = !isExplicitlyUnauthenticated;
+
+        return {
+          success: isConfirmed,
+          integration: 'huntiq',
+          reachable: true,
+          authenticated: isConfirmed,
+          statusCode: response.status,
+          message: isConfirmed
+            ? `HUNTIQ connection verified (HTTP ${response.status})`
+            : `HUNTIQ server responded (HTTP ${response.status}), but authentication was not confirmed`
+        };
+      }
+
       return {
-        success: response.ok,
+        success: false,
         integration: 'huntiq',
-        reachable,
-        authenticated: response.ok || response.status !== 401,
+        reachable: response.status < 500,
+        authenticated: false,
         statusCode: response.status,
-        message: response.ok
-          ? `HUNTIQ connection verified (HTTP ${response.status})`
-          : `HUNTIQ server reachable (HTTP ${response.status})`
+        message: `HUNTIQ server returned error (HTTP ${response.status})`
       };
     } catch (err: any) {
       return {

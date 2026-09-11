@@ -52,6 +52,24 @@ async function runTests() {
         return;
       }
 
+      if (mockScenario === '500_error') {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal Server Error' }));
+        return;
+      }
+
+      if (mockScenario === '404_error') {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not Found' }));
+        return;
+      }
+
+      if (mockScenario === '200_unauth') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, authenticated: false, message: 'Invalid token' }));
+        return;
+      }
+
       if (mockScenario === 'timeout') {
         setTimeout(() => {
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -247,15 +265,46 @@ async function runTests() {
     console.log('   ✓ Test 9 passed: Contacts synced successfully.\n');
 
     // -------------------------------------------------------------------------
-    // Test 10: Connection Test Endpoint
+    // Test 10: Connection Test & Authentication Semantics
     // -------------------------------------------------------------------------
-    console.log('Test 10: Testing Connection Test Endpoint...');
+    console.log('Test 10: Testing Connection Status & Authentication Semantics...');
+    // 10A: Normal confirmed 200 response
+    mockScenario = 'normal';
     const connRes = await fetch('http://localhost:3002/api/integrations/huntiq/test', { method: 'POST' });
     const connData = await connRes.json();
     assert.strictEqual(connData.success, true);
     assert.strictEqual(connData.reachable, true);
-    assert.strictEqual(connData.authenticated, true);
-    console.log('   ✓ Test 10 passed: Connection test succeeded.\n');
+    assert.strictEqual(connData.authenticated, true, '200 response confirms authenticated: true');
+
+    // 10B: 200 response with authenticated: false explicitly returned by server
+    mockScenario = '200_unauth';
+    const connUnauth = await (new HuntIQClient()).checkConnection();
+    assert.strictEqual(connUnauth.authenticated, false, 'authenticated must be false when server does not confirm');
+    assert.strictEqual(connUnauth.success, false);
+
+    // 10C: 500 error response must NEVER return authenticated: true merely because status !== 401
+    mockScenario = '500_error';
+    const conn500 = await (new HuntIQClient()).checkConnection();
+    assert.strictEqual(conn500.authenticated, false, '500 error must NEVER return authenticated: true');
+    assert.strictEqual(conn500.reachable, false);
+    assert.strictEqual(conn500.success, false);
+
+    // 10D: 404 error response must NEVER return authenticated: true
+    mockScenario = '404_error';
+    const conn404 = await (new HuntIQClient()).checkConnection();
+    assert.strictEqual(conn404.authenticated, false, '404 error must NEVER return authenticated: true');
+    assert.strictEqual(conn404.reachable, true);
+    assert.strictEqual(conn404.success, false);
+
+    // 10E: 401 error response returns authenticated: false
+    mockScenario = 'auth_fail_401';
+    const conn401 = await (new HuntIQClient()).checkConnection();
+    assert.strictEqual(conn401.authenticated, false);
+    assert.strictEqual(conn401.reachable, true);
+    assert.strictEqual(conn401.code, 'AUTHENTICATION_FAILED');
+
+    mockScenario = 'normal';
+    console.log('   ✓ Test 10 passed: Connection-status authentication semantics strictly verified.\n');
 
     // -------------------------------------------------------------------------
     // Test 11: 401 Fast-Fail (No Retry)
@@ -565,6 +614,32 @@ async function runTests() {
     assert.strictEqual(quarantinedStorage.length, 1, 'Dead records safely archived');
     assert.strictEqual(quarantinedStorage[0].email, 'dead@test.com');
     console.log('   ✓ Test 29 passed: Dead records safely archived only after confirmed persistence.\n');
+
+    // -------------------------------------------------------------------------
+    // Test 30: Slow / Stalled Response Body Aborts on Lifecycle Timeout in safeFetch
+    // -------------------------------------------------------------------------
+    console.log('Test 30: Testing Slow / Stalled Response Body Timeout in safeFetch...');
+    const stalledServer = http.createServer((req, res) => {
+      // Send HTTP 200 headers and initial partial chunk immediately
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.write('<html><body><h1>Immediate chunk</h1>');
+      // Intentionally stall: do not call res.end() or write further chunks
+    });
+    await new Promise(r => stalledServer.listen(3994, r));
+    const startStalledTime = Date.now();
+    let stalledTimedOut = false;
+    try {
+      await safeFetch('http://localhost:3994', { allowLocalhost: true, timeout: 300 });
+    } catch (err) {
+      stalledTimedOut = true;
+      const elapsed = Date.now() - startStalledTime;
+      assert.ok(elapsed < 2000, `Stalled body timeout took ${elapsed}ms, expected < 2000ms`);
+      assert.ok(err.message.includes('timed out'), `Expected timeout error message, got: ${err.message}`);
+    } finally {
+      stalledServer.close();
+    }
+    assert.strictEqual(stalledTimedOut, true, 'Slow/stalled streaming body must trigger lifecycle timeout');
+    console.log('   ✓ Test 30 passed: Slow/stalled response body aborted promptly by lifecycle timeout.\n');
 
     console.log('🎉 All Final HUNTIQ Pre-Integration Hardening Tests Successfully Passed!\n');
   } finally {
