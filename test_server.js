@@ -1,3 +1,4 @@
+process.env.ALLOW_LOCAL_SCRAPING = 'true';
 const { startServer } = require('./dist/server/index.js');
 
 async function runServerTests() {
@@ -72,12 +73,14 @@ async function runServerTests() {
     console.assert(crawlData.success === true && crawlData.jobId, 'Crawl job should start with jobId');
     console.log(`   ✓ Crawl job registered with ID: ${crawlData.jobId}`);
 
+    if (crawlData.jobId) {
+      await fetch(`http://localhost:3001/api/scrape/crawl/cancel/${crawlData.jobId}`, { method: 'POST' });
+    }
+
     console.log('\n🌟 All Server & API integration tests succeeded flawlessly!');
   } finally {
-    server.close(() => {
-      console.log('Server closed gracefully.');
-      process.exit(0);
-    });
+    server.close();
+    console.log('Server closed gracefully.');
   }
 }
 

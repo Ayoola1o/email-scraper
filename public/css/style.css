@@ -99,29 +99,38 @@ body {
 }
 
 .brand-logo {
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--radius-md);
-  background: var(--gradient-primary);
+  background: var(--bg-card);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-size: 22px;
-  box-shadow: var(--shadow-glow);
+  box-shadow: 0 0 25px -4px rgba(99, 102, 241, 0.4), 0 0 10px rgba(6, 182, 212, 0.3);
   position: relative;
   overflow: hidden;
+  border: 1px solid rgba(129, 140, 248, 0.4);
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+  cursor: pointer;
 }
 
-.brand-logo::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
-  opacity: 0.6;
+.brand-logo:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 0 35px -2px rgba(99, 102, 241, 0.65), 0 0 20px rgba(6, 182, 212, 0.5);
+  border-color: rgba(168, 85, 247, 0.7);
+}
+
+.brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+  transition: transform var(--transition-normal);
+}
+
+.brand-logo:hover .brand-logo-img {
+  transform: scale(1.06);
 }
 
 .brand-title {

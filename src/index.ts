@@ -57,6 +57,18 @@ export type {
 
 export type { Browser, Page, BrowserFactory } from './types/browser';
 
+// Export HUNTIQ Data Acquisition Integration
+export * from './integrations/huntiq';
+
+// Export Security and SSRF validation
+export {
+  validateSafeScrapeUrl,
+  isRestrictedIpAddress,
+  sanitizeCrawlLimits,
+  CRAWL_SECURITY_LIMITS,
+  type UrlValidationOptions
+} from './utils/security';
+
 /**
  * Main scraper class for easy usage
  */

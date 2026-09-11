@@ -550,29 +550,30 @@ function closeHuntiqModal() {
 }
 
 async function testHuntiqConnection() {
-  const url = elements.huntiqUrlInput.value.trim();
-  const apiKey = elements.huntiqApiKeyInput.value.trim();
-  const workspaceId = elements.huntiqWorkspaceInput.value.trim();
-
-  if (!url) {
-    showToast('Please specify the HUNTIQ Ingest URL', 'error');
-    return;
-  }
+  const url = elements.huntiqUrlInput ? elements.huntiqUrlInput.value.trim() : '';
 
   setLoadingState(true, elements.btnTestHuntiqConn, 'Testing...');
 
   try {
-    const res = await fetch('/api/sync/huntiq/test', {
+    // Prefer server-configured integration endpoint
+    const endpoint = url ? '/api/sync/huntiq/test' : '/api/integrations/huntiq/test';
+    const body = url ? JSON.stringify({ huntiqApiUrl: url }) : undefined;
+
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ huntiqApiUrl: url, apiKey, workspaceId })
+      body
     });
     const data = await res.json();
 
     if (data.reachable) {
-      showToast(`✓ HUNTIQ reachable! (${data.message})`, 'success');
+      if (data.authenticated === false) {
+        showToast(`⚠️ HUNTIQ reachable but authentication rejected. Check HUNTIQ_API_KEY.`, 'warning');
+      } else {
+        showToast(`✓ HUNTIQ reachable & verified! (${data.message || 'Ready'})`, 'success');
+      }
     } else {
-      showToast(`✕ Could not reach HUNTIQ: ${data.error}`, 'error');
+      showToast(`✕ Could not reach HUNTIQ: ${data.message || data.error}`, 'error');
     }
   } catch (err) {
     showToast(`Test failed: ${err.message}`, 'error');
@@ -589,37 +590,18 @@ async function confirmHuntiqSync() {
     return;
   }
 
-  const huntiqApiUrl = elements.huntiqUrlInput.value.trim();
-  const workspaceId = elements.huntiqWorkspaceInput.value.trim() || 'ws-default-001';
-  const apiKey = elements.huntiqApiKeyInput.value.trim();
-  const createOutreachDraft = elements.huntiqDraftToggle.checked;
-  const autoSync = elements.huntiqAutosyncToggle.checked;
-
-  if (!huntiqApiUrl) {
-    showToast('Please enter your HUNTIQ API URL', 'error');
-    return;
-  }
-
-  // Persist settings in localStorage
-  localStorage.setItem('huntiq_url', huntiqApiUrl);
-  localStorage.setItem('huntiq_workspace', workspaceId);
-  localStorage.setItem('huntiq_apikey', apiKey);
-  localStorage.setItem('huntiq_draft', String(createOutreachDraft));
+  const autoSync = elements.huntiqAutosyncToggle ? elements.huntiqAutosyncToggle.checked : false;
   localStorage.setItem('huntiq_autosync', String(autoSync));
 
   setLoadingState(true, elements.btnConfirmHuntiqSync, `Pushing ${targets.length} leads...`);
 
   try {
-    const res = await fetch('/api/sync/huntiq', {
+    const res = await fetch('/api/integrations/huntiq/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         records: targets,
-        huntiqApiUrl,
-        workspaceId,
-        apiKey,
-        createOutreachDraft,
-        source: 'EMAIL_SCRAPER_PRO'
+        sourceType: 'website_email_scraper'
       })
     });
 
@@ -630,8 +612,8 @@ async function confirmHuntiqSync() {
     }
 
     closeHuntiqModal();
-    const draftNotice = createOutreachDraft ? ' & created outreach drafts' : '';
-    showToast(`🚀 Successfully synced ${data.syncedCount} lead(s) to HUNTIQ CRM${draftNotice}!`, 'success');
+    const dupNotice = data.duplicates > 0 ? ` (${data.duplicates} duplicates)` : '';
+    showToast(`🚀 Successfully synced ${data.accepted ?? targets.length} lead(s) to HUNTIQ CRM${dupNotice}!`, 'success');
   } catch (err) {
     showToast(`HUNTIQ Sync: ${err.message}`, 'error');
   } finally {
@@ -640,27 +622,20 @@ async function confirmHuntiqSync() {
 }
 
 async function triggerAutoHuntiqSync(newRecords) {
-  const huntiqApiUrl = localStorage.getItem('huntiq_url') || 'http://localhost:3001/api/v1/integrations/lead-ingest';
-  const workspaceId = localStorage.getItem('huntiq_workspace') || 'ws-default-001';
-  const apiKey = localStorage.getItem('huntiq_apikey') || '';
-  const createOutreachDraft = localStorage.getItem('huntiq_draft') !== 'false';
+  if (!newRecords || newRecords.length === 0) return;
 
   try {
-    const res = await fetch('/api/sync/huntiq', {
+    const res = await fetch('/api/integrations/huntiq/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         records: newRecords,
-        huntiqApiUrl,
-        workspaceId,
-        apiKey,
-        createOutreachDraft,
-        source: 'EMAIL_SCRAPER_AUTOSYNC'
+        sourceType: 'website_email_scraper'
       })
     });
     const data = await res.json();
     if (res.ok && data.success) {
-      showToast(`⚡ Auto-synced ${data.syncedCount} new lead(s) to HUNTIQ CRM!`, 'info');
+      showToast(`⚡ Auto-synced ${data.accepted ?? newRecords.length} new lead(s) to HUNTIQ CRM!`, 'info');
     }
   } catch (err) {
     console.warn('Auto-sync to HUNTIQ failed:', err);

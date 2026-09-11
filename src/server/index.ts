@@ -10,6 +10,15 @@ import {
   ScrapedEmailRecord,
   CrawlProgress
 } from '../index';
+import {
+  HuntIQClient,
+  HuntIQConfigManager,
+  mapRecordsToHuntIQPayload
+} from '../integrations/huntiq';
+import {
+  validateSafeScrapeUrl,
+  sanitizeCrawlLimits
+} from '../utils/security';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -76,6 +85,11 @@ app.post('/api/scrape/page', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Valid URL is required' });
     }
 
+    const validation = await validateSafeScrapeUrl(url.trim());
+    if (!validation.safe) {
+      return res.status(400).json({ error: validation.error });
+    }
+
     const result = await scrapeEmailRecordsFromUrl(url.trim(), {
       timeout: parseInt(String(timeout), 10),
       userAgent
@@ -115,6 +129,13 @@ app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Valid starting URL is required' });
     }
 
+    const validation = await validateSafeScrapeUrl(url.trim());
+    if (!validation.safe) {
+      return res.status(400).json({ error: validation.error });
+    }
+
+    const limits = sanitizeCrawlLimits(maxDepth, maxPages);
+
     const jobId = randomUUID();
     const job: ActiveCrawlJob = {
       id: jobId,
@@ -134,8 +155,8 @@ app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
     (async () => {
       try {
         const result = await scrapeEmailRecordsFromWebsite(job.url, {
-          maxDepth: parseInt(String(maxDepth), 10),
-          maxPages: parseInt(String(maxPages), 10),
+          maxDepth: limits.depth,
+          maxPages: limits.pages,
           sameDomainOnly: Boolean(sameDomainOnly),
           timeout: parseInt(String(timeout), 10),
           delayMs: parseInt(String(delayMs), 10),
@@ -350,150 +371,118 @@ app.post('/api/export', (req: Request, res: Response) => {
   }
 });
 
+/* ========================================================================= */
+/* HUNTIQ Dedicated Integration Endpoints (Data Acquisition Service v1.0)   */
+/* ========================================================================= */
+
 /**
- * Synchronizes scraped email records directly into HUNTIQ CRM & Outreach queue
- * Adheres strictly to the HUNTIQ Lead Ingestion API Specification
+ * Connection & health check for configured HUNTIQ integration
  */
-app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
+app.post('/api/integrations/huntiq/test', async (req: Request, res: Response) => {
   try {
-    const { records, huntiqApiUrl, apiKey, workspaceId, createOutreachDraft = true, source = 'EXTERNAL_EMAIL_SCRAPER' } = req.body;
-    if (!Array.isArray(records) || records.length === 0) {
-      return res.status(400).json({ error: 'Valid records array is required' });
-    }
-
-    const endpoint = huntiqApiUrl || process.env.HUNTIQ_API_URL || 'http://localhost:3001/api/v1/integrations/lead-ingest';
-    const targetWorkspace = workspaceId || process.env.HUNTIQ_WORKSPACE_ID || 'ws-default-001';
-
-    // Format records into HUNTIQ Lead format
-    const formattedLeads = records.map((r: any) => {
-      let firstName: string | undefined;
-      let lastName: string | undefined;
-
-      if (r.name) {
-        const parts = String(r.name).trim().split(/\s+/);
-        firstName = parts[0];
-        if (parts.length > 1) {
-          lastName = parts.slice(1).join(' ');
-        }
-      } else if (r.email && r.email.includes('@')) {
-        const localParts = r.email.split('@')[0].split(/[._\-+]+/).filter(Boolean);
-        if (localParts.length > 0) {
-          firstName = localParts[0].charAt(0).toUpperCase() + localParts[0].slice(1).toLowerCase();
-          if (localParts.length > 1) {
-            lastName = localParts.slice(1).map((p: string) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');
-          }
-        }
-      }
-
-      // Infer company name if not explicitly present
-      let companyName = r.companyName;
-      if (!companyName && r.domain) {
-        const domainBase = r.domain.replace(/\.[a-z]{2,}$/i, '');
-        companyName = domainBase.charAt(0).toUpperCase() + domainBase.slice(1);
-      }
-
-      const website = r.website || (r.domain ? `https://${r.domain}` : undefined);
-
-      return {
-        email: r.email,
-        name: r.name || (firstName && lastName ? `${firstName} ${lastName}` : firstName),
-        firstName,
-        lastName,
-        jobTitle: r.jobTitle || undefined,
-        companyName,
-        domain: r.domain || undefined,
-        website,
-        phone: r.phone || undefined,
-        sourceUrl: r.sourceUrl || undefined,
-        mxStatus: r.mxStatus || 'unverified',
-        socials: r.socials && (r.socials.linkedin || r.socials.twitter || r.socials.github) ? r.socials : undefined,
-        notes: r.contextSnippet || r.notes || `Discovered via ${source}`
-      };
-    });
-
-    const huntiqPayload = {
-      source,
-      createOutreachDraft: Boolean(createOutreachDraft),
-      leads: formattedLeads
-    };
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-workspace-id': targetWorkspace
-    };
-    if (apiKey) {
-      headers['x-huntiq-api-key'] = apiKey;
-    }
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(huntiqPayload),
-      signal: AbortSignal.timeout(15000)
-    });
-
-    const responseText = await response.text();
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      data = { rawResponse: responseText };
-    }
-
-    if (!response.ok) {
-      return res.status(response.status).json({
-        success: false,
-        statusCode: response.status,
-        error: data.error || data.message || `HUNTIQ returned HTTP ${response.status}`,
-        details: data
-      });
-    }
-
-    return res.json({
-      success: true,
-      syncedCount: formattedLeads.length,
-      workspace: targetWorkspace,
-      createOutreachDraft: Boolean(createOutreachDraft),
-      huntiqResponse: data
-    });
+    const client = new HuntIQClient();
+    const result = await client.checkConnection();
+    return res.json(result);
   } catch (err: any) {
-    const isConnRefused = err.cause && err.cause.code === 'ECONNREFUSED';
-    return res.status(502).json({
+    return res.status(500).json({
       success: false,
-      error: isConnRefused
-        ? `Cannot connect to HUNTIQ at ${req.body.huntiqApiUrl || 'http://localhost:3001'}. Is your HUNTIQ app running?`
-        : `HUNTIQ sync error: ${err.message}`
+      integration: 'huntiq',
+      reachable: false,
+      authenticated: false,
+      message: err.message
     });
   }
 });
 
 /**
- * Quick connection health check for HUNTIQ API endpoint
+ * Synchronizes discovered contact records into HUNTIQ (Contract v1.0)
+ * Uses server-side credentials only and enforces factual discovery
+ */
+app.post('/api/integrations/huntiq/sync', async (req: Request, res: Response) => {
+  try {
+    const { records, jobId, companyDomain, companyWebsite, companyName, sourceType } = req.body;
+    if (!Array.isArray(records) || records.length === 0) {
+      return res.status(400).json({ error: 'Valid records array is required' });
+    }
+
+    const payload = mapRecordsToHuntIQPayload(records, {
+      jobId,
+      domain: companyDomain,
+      discoveredWebsiteUrl: companyWebsite,
+      discoveredCompanyName: companyName,
+      sourceType: sourceType || 'website_email_scraper'
+    });
+
+    const client = new HuntIQClient();
+    const result = await client.syncContacts(payload);
+    return res.json(result);
+  } catch (err: any) {
+    const isAuth = err.message && (err.message.includes('401') || err.message.includes('Unauthorized'));
+    const isConnRefused = err.cause && err.cause.code === 'ECONNREFUSED';
+    const statusCode = isAuth ? 401 : isConnRefused ? 502 : 500;
+    return res.status(statusCode).json({
+      success: false,
+      error: err.message || 'HUNTIQ synchronization failed'
+    });
+  }
+});
+
+/**
+ * Backward compatibility: Deprecated sync endpoint
+ * Routes through HuntIQClient and strips unsafe/fabricated client overrides
+ */
+app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
+  res.setHeader('Warning', '299 - "This endpoint is deprecated. Use /api/integrations/huntiq/sync instead."');
+  try {
+    const { records, huntiqApiUrl, apiKey, workspaceId, source = 'EXTERNAL_EMAIL_SCRAPER' } = req.body;
+    if (!Array.isArray(records) || records.length === 0) {
+      return res.status(400).json({ error: 'Valid records array is required' });
+    }
+
+    const payload = mapRecordsToHuntIQPayload(records, {
+      sourceType: 'website_email_scraper'
+    });
+
+    // In testing/local environments, allow URL override for mock server testing
+    const client = new HuntIQClient({
+      apiUrl: huntiqApiUrl || process.env.HUNTIQ_API_URL,
+      apiKey: apiKey || process.env.HUNTIQ_API_KEY,
+      workspaceId: workspaceId || process.env.HUNTIQ_WORKSPACE_ID
+    });
+
+    const result = await client.syncContacts(payload);
+
+    return res.json({
+      success: true,
+      syncedCount: result.accepted,
+      requestId: result.requestId,
+      huntiqResponse: result.huntiqResponse || result
+    });
+  } catch (err: any) {
+    const isConnRefused = err.cause && err.cause.code === 'ECONNREFUSED';
+    const isAuth = err.message && err.message.includes('401');
+    const status = isAuth ? 401 : isConnRefused ? 502 : 500;
+    return res.status(status).json({
+      success: false,
+      error: `HUNTIQ sync error: ${err.message}`
+    });
+  }
+});
+
+/**
+ * Backward compatibility: Deprecated connection test endpoint
  */
 app.post('/api/sync/huntiq/test', async (req: Request, res: Response) => {
+  res.setHeader('Warning', '299 - "This endpoint is deprecated. Use /api/integrations/huntiq/test instead."');
   try {
-    const { huntiqApiUrl = 'http://localhost:3001/api/v1/integrations/lead-ingest', apiKey, workspaceId = 'ws-default-001' } = req.body;
-    
-    // Test with empty leads array or ping
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-workspace-id': workspaceId
-    };
-    if (apiKey) headers['x-huntiq-api-key'] = apiKey;
-
-    const response = await fetch(huntiqApiUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ source: 'PING_CHECK', leads: [] }),
-      signal: AbortSignal.timeout(5000)
+    const { huntiqApiUrl, apiKey, workspaceId } = req.body;
+    const client = new HuntIQClient({
+      apiUrl: huntiqApiUrl || process.env.HUNTIQ_API_URL,
+      apiKey: apiKey || process.env.HUNTIQ_API_KEY,
+      workspaceId: workspaceId || process.env.HUNTIQ_WORKSPACE_ID
     });
-
-    res.json({
-      success: true,
-      reachable: true,
-      status: response.status,
-      message: `HUNTIQ server responded (HTTP ${response.status})`
-    });
+    const result = await client.checkConnection();
+    res.json(result);
   } catch (err: any) {
     res.json({
       success: false,

@@ -313,7 +313,7 @@ node dist/cli.js serve -p 3000
 ### REST API Endpoints
 
 - `GET /api/health` - System status and active crawl count
-- `POST /api/scrape/page` - Scrape a single URL (`{ url, timeout }`)
+- `POST /api/scrape/page` - Scrape a single URL (`{ url, timeout }`) with SSRF validation
 - `POST /api/scrape/crawl` - Start deep website crawler (`{ url, maxDepth, maxPages, delayMs }`)
 - `GET /api/scrape/crawl/stream/:jobId` - Live Server-Sent Events (SSE) telemetry stream
 - `POST /api/scrape/crawl/cancel/:jobId` - Abort an ongoing crawl
@@ -321,6 +321,95 @@ node dist/cli.js serve -p 3000
 - `POST /api/scrape/text` - Direct extraction from raw text or HTML (`{ text: "..." }`)
 - `POST /api/export` - Export records into CSV, JSON, TXT, or VCF (`{ records: [...], format: "csv" }`)
 - `GET /api/demo` - Built-in offline mock directory with obfuscated and role test fixtures
+- `POST /api/integrations/huntiq/test` - Live connection & authentication test with HUNTIQ
+- `POST /api/integrations/huntiq/sync` - Push verified discovery payloads directly to HUNTIQ (Contract v1.0)
+
+---
+
+## HUNTIQ Integration & Discovery Service
+
+Email Scraper serves as the dedicated, production-grade **Email & Contact Discovery Service for HUNTIQ**.
+
+### Architectural Responsibility
+- **EMAIL-SCRAPER = DATA ACQUISITION**: Responsible solely for factual web discovery, evidence gathering, source provenance, and confidence scoring. Zero CRM decisions or data fabrication.
+- **HUNTIQ = INTELLIGENCE + CRM**: Responsible for lead qualification, company matching, scoring, and automated outreach.
+
+### Environment Configuration
+
+Configure the service on the server using environment variables (API keys are **never** exposed to browser clients):
+
+```bash
+# HUNTIQ Server Ingestion Endpoint
+HUNTIQ_API_URL=https://app.huntiq.com/api/v1/integrations/lead-ingest
+
+# Secret HUNTIQ API Key (Server-side only)
+HUNTIQ_API_KEY=hnt_live_your_api_key_here
+
+# Target Workspace Identifier
+HUNTIQ_WORKSPACE_ID=ws-default-001
+
+# Optional client timeout and retry tuning
+HUNTIQ_TIMEOUT_MS=10000
+HUNTIQ_MAX_RETRIES=3
+```
+
+### Data Contract (Version 1.0)
+
+Discovery payloads follow a strict, versioned, and strongly typed schema with **zero synthetic data fabrication**:
+
+```json
+{
+  "integration": "email-scraper",
+  "version": "1.0",
+  "requestId": "3a7b98f2-8921-4f51-b851-fa7b2c91a0de",
+  "source": {
+    "type": "website_email_scraper",
+    "jobId": "crawler-job-id"
+  },
+  "company": {
+    "name": null,
+    "domain": "acme.com",
+    "website": "https://acme.com"
+  },
+  "contacts": [
+    {
+      "email": "dr.elena.rostova@acme.com",
+      "emailType": "PERSONAL",
+      "emailStatus": "VALIDATED",
+      "confidence": 0.95,
+      "sourceUrl": "https://acme.com/team",
+      "sourceType": "TEAM_PAGE",
+      "name": "Dr. Elena Rostova",
+      "jobTitle": "Chief Executive Officer",
+      "phone": "+1 555-0199",
+      "socials": {
+        "linkedin": "https://linkedin.com/in/elena-rostova"
+      }
+    },
+    {
+      "email": "alex.smith@acme.com",
+      "emailType": "PERSONAL",
+      "emailStatus": "FOUND",
+      "confidence": 0.70,
+      "sourceUrl": "https://acme.com/contact",
+      "sourceType": "CONTACT_PAGE",
+      "name": null,
+      "identityInference": {
+        "firstName": "Alex",
+        "lastName": "Smith",
+        "confidence": 0.45,
+        "source": "email_local_part"
+      }
+    }
+  ]
+}
+```
+
+### Reliability & Security Features
+- **Idempotent Delivery**: All requests send a unique `Idempotency-Key` matching `requestId`.
+- **Controlled Retries**: Transient network errors and HTTP 5xx responses trigger exponential backoff retries. Client errors (HTTP 401, 403, 400) fast-fail immediately without retry.
+- **SSRF Safeguards**: All scrape URLs are validated via DNS resolution to block access to private RFC 1918 subnets, loopback addresses, and cloud metadata services (`169.254.169.254`).
+- **Resource Caps**: Response payload sizes are capped at 10MB; crawler depth and page counts are sanitized to prevent resource exhaustion.
 
 ### Running Tests
 
