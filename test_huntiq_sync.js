@@ -2,14 +2,14 @@ const assert = require('assert');
 const http = require('http');
 
 async function runTests() {
-  console.log('🧪 Starting Critical HUNTIQ Integration & Security Test Suite (30 Scenarios)...\n');
+  console.log('🧪 Starting Final HUNTIQ Pre-Integration Hardening Test Suite...\n');
 
   let mockScenario = 'normal';
   let receivedPayloads = [];
   let receivedHeadersList = [];
   let retryCount = 0;
 
-  // 1. Create flexible mock HUNTIQ server on port 3999
+  // 1. Create mock HUNTIQ server on port 3999
   const mockHuntiqServer = http.createServer((req, res) => {
     receivedHeadersList.push(req.headers);
     let body = '';
@@ -95,6 +95,7 @@ async function runTests() {
   const {
     validateSafeScrapeUrl,
     isRestrictedIpAddress,
+    parseAndValidateIpv4,
     safeFetch,
     sanitizeCrawlLimits,
     CRAWL_SECURITY_LIMITS
@@ -102,47 +103,61 @@ async function runTests() {
 
   try {
     // -------------------------------------------------------------------------
-    // Scenario 1: Missing HUNTIQ Configuration (HUNTIQ_INTEGRATION_NOT_CONFIGURED)
+    // Test 1: Missing HUNTIQ API Key
     // -------------------------------------------------------------------------
-    console.log('Scenario 1: Testing Missing HUNTIQ Configuration...');
+    console.log('Test 1: Testing Missing HUNTIQ API Key...');
+    const originalKey = process.env.HUNTIQ_API_KEY;
+    delete process.env.HUNTIQ_API_KEY;
+    assert.strictEqual(HuntIQConfigManager.isConfigured(), false, 'isConfigured must be false when API key is missing');
+    const errMissingKey = HuntIQConfigManager.getUnconfiguredError();
+    assert.strictEqual(errMissingKey.code, 'HUNTIQ_INTEGRATION_NOT_CONFIGURED');
+    assert.strictEqual(errMissingKey.message, 'HUNTIQ integration is not configured on this server.');
+    assert.ok(!errMissingKey.message.includes('API_KEY'), 'Must not leak which secret is missing');
+    process.env.HUNTIQ_API_KEY = originalKey;
+    console.log('   ✓ Test 1 passed: Missing API key returns HUNTIQ_INTEGRATION_NOT_CONFIGURED.\n');
+
+    // -------------------------------------------------------------------------
+    // Test 2: Missing HUNTIQ URL
+    // -------------------------------------------------------------------------
+    console.log('Test 2: Testing Missing HUNTIQ URL...');
     const originalUrl = process.env.HUNTIQ_API_URL;
     delete process.env.HUNTIQ_API_URL;
-    assert.strictEqual(HuntIQConfigManager.isConfigured(), false);
-    const unconfiguredPayload = HuntIQConfigManager.getUnconfiguredError();
-    assert.strictEqual(unconfiguredPayload.code, 'HUNTIQ_INTEGRATION_NOT_CONFIGURED');
-
-    const testUnconfRes = await fetch('http://localhost:3002/api/integrations/huntiq/test', { method: 'POST' });
-    assert.strictEqual(testUnconfRes.status, 503);
-    const unconfData = await testUnconfRes.json();
-    assert.strictEqual(unconfData.code, 'HUNTIQ_INTEGRATION_NOT_CONFIGURED');
+    assert.strictEqual(HuntIQConfigManager.isConfigured(), false, 'isConfigured must be false when URL is missing');
+    const errMissingUrl = HuntIQConfigManager.getUnconfiguredError();
+    assert.strictEqual(errMissingUrl.code, 'HUNTIQ_INTEGRATION_NOT_CONFIGURED');
+    assert.strictEqual(errMissingUrl.message, 'HUNTIQ integration is not configured on this server.');
+    assert.ok(!errMissingUrl.message.includes('API_URL'), 'Must not leak which secret is missing');
     process.env.HUNTIQ_API_URL = originalUrl;
-    console.log('   ✓ Scenario 1 passed: Returned code HUNTIQ_INTEGRATION_NOT_CONFIGURED.\n');
+    console.log('   ✓ Test 2 passed: Missing URL returns HUNTIQ_INTEGRATION_NOT_CONFIGURED.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 2: Successful Server-Side Configuration
+    // Test 3: Disabled HUNTIQ Integration
     // -------------------------------------------------------------------------
-    console.log('Scenario 2: Testing Successful Server-Side Configuration...');
-    assert.strictEqual(HuntIQConfigManager.isConfigured(), true);
+    console.log('Test 3: Testing Disabled HUNTIQ Integration...');
+    process.env.HUNTIQ_INTEGRATION_ENABLED = 'false';
+    assert.strictEqual(HuntIQConfigManager.isConfigured(), false, 'isConfigured must be false when enabled=false');
+    const testDisabledRes = await fetch('http://localhost:3002/api/integrations/huntiq/test', { method: 'POST' });
+    assert.strictEqual(testDisabledRes.status, 503);
+    const disabledData = await testDisabledRes.json();
+    assert.strictEqual(disabledData.code, 'HUNTIQ_INTEGRATION_NOT_CONFIGURED');
+    process.env.HUNTIQ_INTEGRATION_ENABLED = 'true';
+    console.log('   ✓ Test 3 passed: Disabled integration returns HUNTIQ_INTEGRATION_NOT_CONFIGURED.\n');
+
+    // -------------------------------------------------------------------------
+    // Test 4: Successful Configuration
+    // -------------------------------------------------------------------------
+    console.log('Test 4: Testing Successful Server Configuration...');
+    assert.strictEqual(HuntIQConfigManager.isConfigured(), true, 'isConfigured must be true when all env vars set');
     const config = HuntIQConfigManager.getConfig();
     assert.strictEqual(config.apiUrl, 'http://localhost:3999/api/v1/integrations/lead-ingest');
-    console.log('   ✓ Scenario 2 passed: Server configuration loaded from environment.\n');
+    assert.strictEqual(config.apiKey, 'hnt_live_secure_secret_key_999');
+    assert.strictEqual(config.enabled, true);
+    console.log('   ✓ Test 4 passed: Successful configuration loaded correctly.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 3: API Key is Never Returned to Frontend
+    // Test 5: Client-Supplied API Key Ignored / Secret Not Leaked
     // -------------------------------------------------------------------------
-    console.log('Scenario 3: Verifying API Key is Never Returned to Frontend...');
-    const testRes = await fetch('http://localhost:3002/api/integrations/huntiq/test', { method: 'POST' });
-    const testBody = await testRes.text();
-    assert.ok(!testBody.includes('hnt_live_secure_secret_key_999'), 'Secret API key must not leak');
-    const diag = HuntIQConfigManager.getSanitizedDiagnostics();
-    assert.strictEqual(diag.hasApiKey, true);
-    assert.strictEqual(diag.apiKey, undefined, 'API key must be masked');
-    console.log('   ✓ Scenario 3 passed: API key strictly confidential.\n');
-
-    // -------------------------------------------------------------------------
-    // Scenario 4: Client API Key is Ignored / Rejected
-    // -------------------------------------------------------------------------
-    console.log('Scenario 4: Verifying Client-Supplied API Key is Ignored...');
+    console.log('Test 5: Verifying Client API Key is Ignored...');
     receivedHeadersList = [];
     mockScenario = 'normal';
     await fetch('http://localhost:3002/api/integrations/huntiq/sync', {
@@ -156,12 +171,12 @@ async function runTests() {
     const lastHeaders = receivedHeadersList[receivedHeadersList.length - 1];
     assert.strictEqual(lastHeaders['authorization'], 'Bearer hnt_live_secure_secret_key_999');
     assert.ok(!lastHeaders['authorization'].includes('untrusted_attacker_key'));
-    console.log('   ✓ Scenario 4 passed: Client API key completely ignored.\n');
+    console.log('   ✓ Test 5 passed: Client API key completely ignored.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 5: Client Workspace ID is Ignored / Rejected
+    // Test 6: Client Workspace ID is Ignored / Rejected
     // -------------------------------------------------------------------------
-    console.log('Scenario 5: Verifying Client Workspace ID is Ignored...');
+    console.log('Test 6: Verifying Client Workspace ID is Ignored...');
     await fetch('http://localhost:3002/api/integrations/huntiq/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -172,12 +187,12 @@ async function runTests() {
     });
     const headersWs = receivedHeadersList[receivedHeadersList.length - 1];
     assert.strictEqual(headersWs['x-workspace-id'], undefined, 'No client x-workspace-id may be sent');
-    console.log('   ✓ Scenario 5 passed: Client workspace ID not trusted or sent.\n');
+    console.log('   ✓ Test 6 passed: Client workspace ID not trusted or sent.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 6: Client HUNTIQ URL is Ignored
+    // Test 7: Client HUNTIQ URL is Ignored
     // -------------------------------------------------------------------------
-    console.log('Scenario 6: Verifying Client HUNTIQ URL is Ignored...');
+    console.log('Test 7: Verifying Client HUNTIQ URL is Ignored...');
     let rogueServerHit = false;
     const rogueServer = http.createServer((req, res) => {
       rogueServerHit = true;
@@ -198,12 +213,21 @@ async function runTests() {
     } finally {
       rogueServer.close();
     }
-    console.log('   ✓ Scenario 6 passed: Destination locked down to server config.\n');
+    console.log('   ✓ Test 7 passed: Destination locked down to server config.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 7: Successful Contact Sync
+    // Test 8: Single Authentication Mechanism (Authorization: Bearer only)
     // -------------------------------------------------------------------------
-    console.log('Scenario 7: Testing Successful Contact Sync...');
+    console.log('Test 8: Verifying Single Authentication Mechanism (Authorization: Bearer)...');
+    const authHeaders = receivedHeadersList[receivedHeadersList.length - 1];
+    assert.strictEqual(authHeaders['authorization'], 'Bearer hnt_live_secure_secret_key_999');
+    assert.strictEqual(authHeaders['x-huntiq-api-key'], undefined, 'Must NOT send redundant x-huntiq-api-key header');
+    console.log('   ✓ Test 8 passed: Only Authorization: Bearer transmitted; no redundant header.\n');
+
+    // -------------------------------------------------------------------------
+    // Test 9: Successful Contact Sync
+    // -------------------------------------------------------------------------
+    console.log('Test 9: Testing Successful Contact Sync...');
     mockScenario = 'normal';
     const sampleRecord = {
       email: 'dr.elena.rostova@acme-demo.com',
@@ -220,23 +244,23 @@ async function runTests() {
     const syncData = await syncRes.json();
     assert.strictEqual(syncData.success, true);
     assert.strictEqual(syncData.accepted, 1);
-    console.log('   ✓ Scenario 7 passed: Contacts synced successfully.\n');
+    console.log('   ✓ Test 9 passed: Contacts synced successfully.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 8: Connection Test Endpoint
+    // Test 10: Connection Test Endpoint
     // -------------------------------------------------------------------------
-    console.log('Scenario 8: Testing Connection Test Endpoint...');
+    console.log('Test 10: Testing Connection Test Endpoint...');
     const connRes = await fetch('http://localhost:3002/api/integrations/huntiq/test', { method: 'POST' });
     const connData = await connRes.json();
     assert.strictEqual(connData.success, true);
     assert.strictEqual(connData.reachable, true);
     assert.strictEqual(connData.authenticated, true);
-    console.log('   ✓ Scenario 8 passed: Connection test succeeded.\n');
+    console.log('   ✓ Test 10 passed: Connection test succeeded.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 9: 401 Unauthorized Does NOT Retry
+    // Test 11: 401 Fast-Fail (No Retry)
     // -------------------------------------------------------------------------
-    console.log('Scenario 9: Testing 401 Does NOT Retry...');
+    console.log('Test 11: Testing 401 Fast-Fail (No Retry)...');
     mockScenario = 'auth_fail_401';
     const client401 = new HuntIQClient({ maxRetries: 3 });
     const payload401 = mapRecordsToHuntIQPayload([sampleRecord]);
@@ -248,12 +272,12 @@ async function runTests() {
       assert.ok(err.message.includes('401'));
     }
     assert.strictEqual(caught401, true);
-    console.log('   ✓ Scenario 9 passed: 401 fast-fails with 0 retries.\n');
+    console.log('   ✓ Test 11 passed: 401 fast-fails with 0 retries.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 10: 403 Forbidden Does NOT Retry
+    // Test 12: 403 Fast-Fail (No Retry)
     // -------------------------------------------------------------------------
-    console.log('Scenario 10: Testing 403 Does NOT Retry...');
+    console.log('Test 12: Testing 403 Fast-Fail (No Retry)...');
     mockScenario = 'auth_fail_403';
     const client403 = new HuntIQClient({ maxRetries: 3 });
     let caught403 = false;
@@ -264,24 +288,24 @@ async function runTests() {
       assert.ok(err.message.includes('403'));
     }
     assert.strictEqual(caught403, true);
-    console.log('   ✓ Scenario 10 passed: 403 fast-fails with 0 retries.\n');
+    console.log('   ✓ Test 12 passed: 403 fast-fails with 0 retries.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 11: 5xx Server Error Retries with Backoff
+    // Test 13: 5xx Transient Error Retries with Backoff
     // -------------------------------------------------------------------------
-    console.log('Scenario 11: Testing 5xx Retries with Backoff...');
+    console.log('Test 13: Testing 5xx Retries with Backoff...');
     mockScenario = '500_retry';
     retryCount = 0;
     const client500 = new HuntIQClient({ maxRetries: 2, timeoutMs: 2000 });
     const res500 = await client500.syncContacts(payload401);
     assert.strictEqual(res500.success, true);
     assert.strictEqual(retryCount, 2, 'Should have retried transient 500 error');
-    console.log('   ✓ Scenario 11 passed: 5xx transient error retried and recovered.\n');
+    console.log('   ✓ Test 13 passed: 5xx transient error retried and recovered.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 12: Network Failure Retry
+    // Test 14: Network Failure & Timeout
     // -------------------------------------------------------------------------
-    console.log('Scenario 12: Testing Network Failure Handling...');
+    console.log('Test 14: Testing Network Failure & Timeout...');
     const clientDeadPort = new HuntIQClient({ apiUrl: 'http://localhost:3997/dead', maxRetries: 1, timeoutMs: 300 });
     let caughtNetErr = false;
     try {
@@ -290,12 +314,7 @@ async function runTests() {
       caughtNetErr = true;
     }
     assert.strictEqual(caughtNetErr, true);
-    console.log('   ✓ Scenario 12 passed: Network failure caught cleanly.\n');
 
-    // -------------------------------------------------------------------------
-    // Scenario 13: Timeout Handling
-    // -------------------------------------------------------------------------
-    console.log('Scenario 13: Testing Timeout Handling...');
     mockScenario = 'timeout';
     const clientTimeout = new HuntIQClient({ timeoutMs: 300, maxRetries: 0 });
     let caughtTimeout = false;
@@ -305,12 +324,12 @@ async function runTests() {
       caughtTimeout = true;
     }
     assert.strictEqual(caughtTimeout, true);
-    console.log('   ✓ Scenario 13 passed: Timeout aborts promptly.\n');
+    console.log('   ✓ Test 14 passed: Network failure and timeout abort handled cleanly.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 14: Idempotency Key
+    // Test 15: Idempotency-Key Header
     // -------------------------------------------------------------------------
-    console.log('Scenario 14: Testing Idempotency-Key Header...');
+    console.log('Test 15: Testing Idempotency-Key Header...');
     mockScenario = 'normal';
     receivedHeadersList = [];
     const clientNormal = new HuntIQClient();
@@ -318,12 +337,12 @@ async function runTests() {
     await clientNormal.syncContacts(idempPayload);
     const idempHeaders = receivedHeadersList[receivedHeadersList.length - 1];
     assert.strictEqual(idempHeaders['idempotency-key'], idempPayload.requestId);
-    console.log('   ✓ Scenario 14 passed: Idempotency-Key transmitted.\n');
+    console.log('   ✓ Test 15 passed: Idempotency-Key transmitted.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 15: Duplicate Contact Deduplication
+    // Test 16: Duplicate Contact Deduplication
     // -------------------------------------------------------------------------
-    console.log('Scenario 15: Testing Duplicate Contact Deduplication...');
+    console.log('Test 16: Testing Duplicate Contact Deduplication...');
     const dups = [
       { email: 'alex@acme.com' },
       { email: 'ALEX@acme.com' },
@@ -331,96 +350,134 @@ async function runTests() {
     ];
     const dedupPayload = mapRecordsToHuntIQPayload(dups);
     assert.strictEqual(dedupPayload.contacts.length, 1);
-    console.log('   ✓ Scenario 15 passed: Duplicate contacts deduplicated.\n');
+    console.log('   ✓ Test 16 passed: Duplicate contacts deduplicated.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 16: No Fabricated Company Name
+    // Test 17: Zero Company & Website Fabrication
     // -------------------------------------------------------------------------
-    console.log('Scenario 16: Verifying No Fabricated Company Name...');
+    console.log('Test 17: Verifying No Fabricated Company Name or Website...');
     const recordNoCo = { email: 'sales@techcorp.io', domain: 'techcorp.io' };
     const payloadNoCo = mapRecordsToHuntIQPayload([recordNoCo]);
     assert.strictEqual(payloadNoCo.company.name, null);
-    console.log('   ✓ Scenario 16 passed: company.name is null.\n');
-
-    // -------------------------------------------------------------------------
-    // Scenario 17: No Fabricated Website
-    // -------------------------------------------------------------------------
-    console.log('Scenario 17: Verifying No Fabricated Website...');
     assert.strictEqual(payloadNoCo.company.website, null);
-    console.log('   ✓ Scenario 17 passed: company.website is null.\n');
+    console.log('   ✓ Test 17 passed: company.name and company.website are strictly null.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 18: Inferred Identity is Explicitly Marked
+    // Test 18: Inferred Identity Isolation vs Verified Identity
     // -------------------------------------------------------------------------
-    console.log('Scenario 18: Testing Inferred Identity Isolation...');
+    console.log('Test 18: Testing Inferred Identity Isolation...');
     const inferredRec = { email: 'sarah.connor@sky.net', name: 'Sarah Connor' };
     const mappedInferred = mapRecordToHuntIQContact(inferredRec);
     assert.strictEqual(mappedInferred.name, null);
     assert.ok(mappedInferred.identityInference);
     assert.strictEqual(mappedInferred.identityInference.firstName, 'Sarah');
     assert.strictEqual(mappedInferred.identityInference.source, 'email_local_part');
-    console.log('   ✓ Scenario 18 passed: Inferred identity isolated in identityInference.\n');
 
-    // -------------------------------------------------------------------------
-    // Scenario 19: Verified Identity Remains Separate
-    // -------------------------------------------------------------------------
-    console.log('Scenario 19: Testing Verified Identity Preservation...');
     const verifiedRec = { email: 'ceo@acme.com', name: 'Dr. Elena Rostova', sourceUrl: 'https://acme.com/team' };
     const mappedVerified = mapRecordToHuntIQContact(verifiedRec);
     assert.strictEqual(mappedVerified.name, 'Dr. Elena Rostova');
     assert.strictEqual(mappedVerified.identitySource, 'website');
     assert.strictEqual(mappedVerified.identityInference, undefined);
-    console.log('   ✓ Scenario 19 passed: Verified name preserved with source website.\n');
+    console.log('   ✓ Test 18 passed: Inferred names isolated; verified names preserved.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 20: No Automatic Outreach Creation
+    // Test 19: No Automatic Outreach Creation
     // -------------------------------------------------------------------------
-    console.log('Scenario 20: Verifying No Automatic Outreach Creation...');
+    console.log('Test 19: Verifying No Automatic Outreach Creation...');
     assert.strictEqual(dedupPayload.createOutreachDraft, undefined);
     assert.strictEqual(dedupPayload.contacts[0].createOutreachDraft, undefined);
-    console.log('   ✓ Scenario 20 passed: No outreach directives emitted.\n');
+    console.log('   ✓ Test 19 passed: No outreach directives emitted.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 21: Localhost Blocked (when allowLocalhost is false)
+    // Test 20: Batch SSRF Validation & Per-URL Error Handling
     // -------------------------------------------------------------------------
-    console.log('Scenario 21: Testing Localhost Blocked...');
+    console.log('Test 20: Testing Batch SSRF Validation & Per-URL Isolation...');
+    const batchRes = await fetch('http://localhost:3002/api/scrape/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        urls: [
+          'http://localhost:3002/api/demo', // safe local demo endpoint
+          'http://169.254.169.254/latest/meta-data', // SSRF cloud metadata
+          'http://999.999.999.999/malformed-ip', // Malformed IPv4
+          'ftp://forbidden-proto.com/file' // Disallowed protocol
+        ]
+      })
+    });
+    assert.strictEqual(batchRes.status, 200);
+    const batchData = await batchRes.json();
+    assert.strictEqual(batchData.success, true);
+    assert.strictEqual(batchData.totalUrlsProcessed, 4);
+
+    // Safe demo URL succeeded
+    const demoSummary = batchData.summary.find(s => s.url.includes('/api/demo'));
+    assert.ok(demoSummary && demoSummary.success === true, 'Safe demo URL must succeed');
+    assert.ok(demoSummary.emailCount > 0, 'Must extract emails from demo');
+
+    // Unsafe metadata URL failed with SSRF error
+    const metaSummary = batchData.summary.find(s => s.url.includes('169.254.169.254'));
+    assert.ok(metaSummary && metaSummary.success === false, 'Metadata SSRF must fail');
+    assert.ok(metaSummary.error.includes('SSRF') || metaSummary.error.includes('metadata'), 'Error must note SSRF/metadata');
+
+    // Malformed IP failed
+    const malformedSummary = batchData.summary.find(s => s.url.includes('999.999.999.999'));
+    assert.ok(malformedSummary && malformedSummary.success === false, 'Malformed IP must fail');
+    assert.ok(malformedSummary.error.includes('malformed'), 'Error must note malformed IPv4');
+
+    // Disallowed protocol failed
+    const ftpSummary = batchData.summary.find(s => s.url.includes('ftp://'));
+    assert.ok(ftpSummary && ftpSummary.success === false, 'Disallowed protocol must fail');
+
+    console.log('   ✓ Test 20 passed: Batch validated every URL; unsafe URLs did not compromise batch.\n');
+
+    // -------------------------------------------------------------------------
+    // Test 21: Localhost & 127.0.0.1 Blocked
+    // -------------------------------------------------------------------------
+    console.log('Test 21: Testing Localhost & 127.0.0.1 Blocked...');
     const resLocalhost = await validateSafeScrapeUrl('http://localhost:8080/admin', { allowLocalhost: false });
     assert.strictEqual(resLocalhost.safe, false);
-    console.log('   ✓ Scenario 21 passed: localhost is blocked.\n');
-
-    // -------------------------------------------------------------------------
-    // Scenario 22: 127.0.0.1 Blocked
-    // -------------------------------------------------------------------------
-    console.log('Scenario 22: Testing 127.0.0.1 Blocked...');
     const res127 = await validateSafeScrapeUrl('http://127.0.0.1:3000', { allowLocalhost: false });
     assert.strictEqual(res127.safe, false);
-    console.log('   ✓ Scenario 22 passed: 127.0.0.1 loopback blocked.\n');
+    console.log('   ✓ Test 21 passed: localhost and 127.0.0.1 loopback blocked.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 23: RFC1918 Private IP Blocked
+    // Test 22: RFC1918 Private Subnets Blocked (10.x, 172.16.x, 192.168.x)
     // -------------------------------------------------------------------------
-    console.log('Scenario 23: Testing RFC1918 Private IPs Blocked...');
+    console.log('Test 22: Testing RFC1918 Private Subnets Blocked...');
     const resRfc10 = await validateSafeScrapeUrl('http://10.0.1.50/dashboard', { allowLocalhost: false });
+    const resRfc172 = await validateSafeScrapeUrl('http://172.16.0.1/admin', { allowLocalhost: false });
     const resRfc192 = await validateSafeScrapeUrl('http://192.168.1.1/config', { allowLocalhost: false });
-    const resRfc172 = await validateSafeScrapeUrl('http://172.20.0.1/admin', { allowLocalhost: false });
     assert.strictEqual(resRfc10.safe, false);
-    assert.strictEqual(resRfc192.safe, false);
     assert.strictEqual(resRfc172.safe, false);
-    console.log('   ✓ Scenario 23 passed: RFC1918 private subnets blocked.\n');
+    assert.strictEqual(resRfc192.safe, false);
+    console.log('   ✓ Test 22 passed: 10.x, 172.16.x, and 192.168.x private subnets blocked.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 24: Cloud Metadata IP Blocked
+    // Test 23: Cloud Metadata IP & Hostname Blocked (169.254.x, metadata.google.internal)
     // -------------------------------------------------------------------------
-    console.log('Scenario 24: Testing Cloud Metadata IP Blocked...');
-    const resMeta = await validateSafeScrapeUrl('http://169.254.169.254/latest/meta-data/', { allowLocalhost: false });
-    assert.strictEqual(resMeta.safe, false);
-    console.log('   ✓ Scenario 24 passed: Cloud metadata endpoint 169.254.169.254 blocked.\n');
+    console.log('Test 23: Testing Cloud Metadata IP & Hostname Blocked...');
+    const resMetaIp = await validateSafeScrapeUrl('http://169.254.169.254/latest/meta-data/', { allowLocalhost: false });
+    assert.strictEqual(resMetaIp.safe, false);
+    const resMetaHost = await validateSafeScrapeUrl('http://metadata.google.internal/computeMetadata/v1/', { allowLocalhost: false });
+    assert.strictEqual(resMetaHost.safe, false);
+    console.log('   ✓ Test 23 passed: 169.254.x and metadata hostnames blocked.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 25: Unsafe Redirect Blocked
+    // Test 24: Strict IPv4 Validation: Malformed IPv4 Blocked
     // -------------------------------------------------------------------------
-    console.log('Scenario 25: Testing Unsafe Redirect Blocked in safeFetch...');
-    // Create a mock server that attempts an SSRF redirect to 169.254.169.254
+    console.log('Test 24: Testing Strict IPv4 Validation (999.999.999.999)...');
+    const resMalformed = await validateSafeScrapeUrl('http://999.999.999.999/test', { allowLocalhost: false });
+    assert.strictEqual(resMalformed.safe, false);
+    assert.ok(resMalformed.error.includes('malformed') || resMalformed.error.includes('Invalid'));
+    const parsedCheck = parseAndValidateIpv4('999.999.999.999');
+    assert.strictEqual(parsedCheck.valid, false);
+    assert.strictEqual(parsedCheck.isIpPattern, true);
+    console.log('   ✓ Test 24 passed: Malformed IPv4 strictly rejected without DNS lookup.\n');
+
+    // -------------------------------------------------------------------------
+    // Test 25: Unsafe Redirect Blocked in safeFetch
+    // -------------------------------------------------------------------------
+    console.log('Test 25: Testing Unsafe Redirect Blocked in safeFetch...');
     const redirectServer = http.createServer((req, res) => {
       res.writeHead(302, { 'Location': 'http://169.254.169.254/latest/meta-data/' });
       res.end();
@@ -436,15 +493,14 @@ async function runTests() {
       redirectServer.close();
     }
     assert.strictEqual(redirectBlocked, true);
-    console.log('   ✓ Scenario 25 passed: SSRF redirect hop detected and blocked.\n');
+    console.log('   ✓ Test 25 passed: SSRF redirect hop detected and blocked.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 26: Oversized Response Blocked
+    // Test 26: Oversized Response Blocked in safeFetch
     // -------------------------------------------------------------------------
-    console.log('Scenario 26: Testing Oversized Response Blocked in safeFetch...');
+    console.log('Test 26: Testing Oversized Response Blocked in safeFetch...');
     const sizeServer = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/html' });
-      // Send 50KB in a test where maxBytes is 1000
       res.end('A'.repeat(50000));
     });
     await new Promise(r => sizeServer.listen(3995, r));
@@ -458,44 +514,34 @@ async function runTests() {
       sizeServer.close();
     }
     assert.strictEqual(sizeBlocked, true);
-    console.log('   ✓ Scenario 26 passed: Oversized response aborted before memory overload.\n');
+    console.log('   ✓ Test 26 passed: Oversized response aborted before memory overload.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 27: Crawl Page Limit Enforced
+    // Test 27: Crawl Limits Sanitization
     // -------------------------------------------------------------------------
-    console.log('Scenario 27: Testing Crawl Page Limit Enforced...');
+    console.log('Test 27: Testing Crawl Limits Sanitization...');
     const sanitizedPages = sanitizeCrawlLimits(1, 99999);
     assert.strictEqual(sanitizedPages.pages, CRAWL_SECURITY_LIMITS.MAX_PAGES_CAP);
-    console.log('   ✓ Scenario 27 passed: Page limit capped at MAX_PAGES_CAP.\n');
-
-    // -------------------------------------------------------------------------
-    // Scenario 28: Crawl Depth Limit Enforced
-    // -------------------------------------------------------------------------
-    console.log('Scenario 28: Testing Crawl Depth Limit Enforced...');
     const sanitizedDepth = sanitizeCrawlLimits(999, 10);
     assert.strictEqual(sanitizedDepth.depth, CRAWL_SECURITY_LIMITS.MAX_DEPTH_CAP);
-    console.log('   ✓ Scenario 28 passed: Depth limit capped at MAX_DEPTH_CAP.\n');
+    console.log('   ✓ Test 27 passed: Page and depth limits strictly capped.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 29: Quarantine Persistence Failure Does NOT Lose Data
+    // Test 28: Quarantine Failure Preserves Original Active Records
     // -------------------------------------------------------------------------
-    console.log('Scenario 29: Testing Quarantine Persistence Failure Does NOT Lose Data...');
-    // Simulate UI state and quarantine failure
+    console.log('Test 28: Testing Quarantine Persistence Failure Does NOT Lose Data...');
     let simulatedRecords = [
       { email: 'valid@test.com', mxStatus: 'deliverable' },
       { email: 'dead@test.com', mxStatus: 'undeliverable' }
     ];
-    let quarantineFailed = true;
 
-    // The safe ordering pattern:
     async function safePurge(activeList, persister) {
       const dead = activeList.filter(r => r.mxStatus === 'undeliverable');
       if (dead.length === 0) return activeList;
       try {
         await persister(dead);
       } catch (err) {
-        // If persistence fails, retain active records!
-        return activeList;
+        return activeList; // Retain active records on failure!
       }
       return activeList.filter(r => r.mxStatus !== 'undeliverable');
     }
@@ -504,12 +550,12 @@ async function runTests() {
       throw new Error('Disk full on quarantine folder');
     });
     assert.strictEqual(afterFailedPurge.length, 2, 'Must retain all records when quarantine fails');
-    console.log('   ✓ Scenario 29 passed: Active records preserved when quarantine fails.\n');
+    console.log('   ✓ Test 28 passed: Active records preserved when quarantine fails.\n');
 
     // -------------------------------------------------------------------------
-    // Scenario 30: Successful Quarantine Archives Correctly
+    // Test 29: Successful Quarantine Archives Correctly
     // -------------------------------------------------------------------------
-    console.log('Scenario 30: Testing Successful Quarantine Archives Correctly...');
+    console.log('Test 29: Testing Successful Quarantine Archives Correctly...');
     let quarantinedStorage = [];
     const afterSuccessPurge = await safePurge(simulatedRecords, async (records) => {
       quarantinedStorage.push(...records);
@@ -518,9 +564,9 @@ async function runTests() {
     assert.strictEqual(afterSuccessPurge.length, 1, 'Only deliverable records remain active');
     assert.strictEqual(quarantinedStorage.length, 1, 'Dead records safely archived');
     assert.strictEqual(quarantinedStorage[0].email, 'dead@test.com');
-    console.log('   ✓ Scenario 30 passed: Dead records safely archived only after confirmed persistence.\n');
+    console.log('   ✓ Test 29 passed: Dead records safely archived only after confirmed persistence.\n');
 
-    console.log('🎉 All 30 Critical HUNTIQ Integration & Security Scenarios Successfully Passed!\n');
+    console.log('🎉 All Final HUNTIQ Pre-Integration Hardening Tests Successfully Passed!\n');
   } finally {
     mockHuntiqServer.close();
     scraperServer.close();

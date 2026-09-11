@@ -22,48 +22,91 @@ export const CRAWL_SECURITY_LIMITS = {
 };
 
 /**
+ * Strictly parses and validates an IPv4 address string.
+ * Returns { valid: true, isIpPattern: true, octets: [a, b, c, d] } if strictly valid (each octet 0-255).
+ * Returns { valid: false, isIpPattern: true } if malformed IP pattern (e.g. 999.999.999.999).
+ * Returns { valid: false, isIpPattern: false } if ordinary hostname string.
+ */
+export function parseAndValidateIpv4(ipStr: string): {
+  valid: boolean;
+  isIpPattern: boolean;
+  octets?: [number, number, number, number];
+} {
+  if (!ipStr || typeof ipStr !== 'string') {
+    return { valid: false, isIpPattern: false };
+  }
+
+  const trimmed = ipStr.trim();
+  const parts = trimmed.split('.');
+
+  if (parts.length === 4 && parts.every(p => /^\d+$/.test(p))) {
+    const octets = parts.map(p => parseInt(p, 10));
+    const allInRange = octets.every((num, idx) => {
+      if (isNaN(num) || num < 0 || num > 255) return false;
+      if (parts[idx].length > 1 && parts[idx].startsWith('0')) return false; // Reject ambiguous leading zeros
+      return true;
+    });
+
+    if (allInRange) {
+      return { valid: true, isIpPattern: true, octets: octets as [number, number, number, number] };
+    }
+    return { valid: false, isIpPattern: true };
+  }
+
+  // Detect numeric IP patterns (e.g. 1-3 parts or pure numeric integer notation)
+  if (/^(\d+\.){1,3}\d+$/.test(trimmed) || /^\d+$/.test(trimmed)) {
+    return { valid: false, isIpPattern: true };
+  }
+
+  return { valid: false, isIpPattern: false };
+}
+
+/**
  * Checks whether an IPv4 or IPv6 address belongs to private, loopback, or metadata ranges
  */
 export function isRestrictedIpAddress(ip: string): boolean {
   if (!ip || typeof ip !== 'string') return true;
 
-  const normalized = ip.trim();
+  const normalized = ip.trim().toLowerCase();
 
   // IPv6 Loopback / Unspecified / Link-local / Unique Local (ULA)
   if (normalized === '::1' || normalized === '::') return true;
-  if (normalized.toLowerCase().startsWith('fe80:')) return true; // link-local
-  if (normalized.toLowerCase().startsWith('fc00:') || normalized.toLowerCase().startsWith('fd00:')) return true; // ULA
+  if (normalized.startsWith('fe80:')) return true; // IPv6 link-local
+  if (normalized.startsWith('fc00:') || normalized.startsWith('fd00:')) return true; // IPv6 ULA
 
   // Normalize IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
   const ipv4 = normalized.startsWith('::ffff:') ? normalized.substring(7) : normalized;
 
-  const parts = ipv4.split('.').map(p => parseInt(p, 10));
-  if (parts.length !== 4 || parts.some(isNaN)) {
+  const parsed = parseAndValidateIpv4(ipv4);
+  if (parsed.isIpPattern) {
+    if (!parsed.valid || !parsed.octets) {
+      return true; // Malformed IPv4 is always restricted
+    }
+    const [a, b, c, d] = parsed.octets;
+
+    // 0.0.0.0/8 (Current network / broadcast)
+    if (a === 0) return true;
+
+    // 127.0.0.0/8 (Loopback)
+    if (a === 127) return true;
+
+    // 10.0.0.0/8 (RFC 1918 Private)
+    if (a === 10) return true;
+
+    // 172.16.0.0/12 (RFC 1918 Private: 172.16.0.0 - 172.31.255.255)
+    if (a === 172 && b >= 16 && b <= 31) return true;
+
+    // 192.168.0.0/16 (RFC 1918 Private)
+    if (a === 192 && b === 168) return true;
+
+    // 169.254.0.0/16 (Link-Local / AWS/GCP/Azure Cloud Metadata)
+    if (a === 169 && b === 254) return true;
+
+    // 100.64.0.0/10 (Carrier-Grade NAT: 100.64.0.0 - 100.127.255.255)
+    if (a === 100 && b >= 64 && b <= 127) return true;
+
     return false;
   }
-
-  const [a, b, c, d] = parts;
-
-  // 0.0.0.0/8 (Broadcast/Current network)
-  if (a === 0) return true;
-
-  // 127.0.0.0/8 (Loopback)
-  if (a === 127) return true;
-
-  // 10.0.0.0/8 (RFC 1918 Private)
-  if (a === 10) return true;
-
-  // 172.16.0.0/12 (RFC 1918 Private: 172.16.0.0 - 172.31.255.255)
-  if (a === 172 && b >= 16 && b <= 31) return true;
-
-  // 192.168.0.0/16 (RFC 1918 Private)
-  if (a === 192 && b === 168) return true;
-
-  // 169.254.0.0/16 (Link-Local / AWS/GCP/Azure Cloud Metadata)
-  if (a === 169 && b === 254) return true;
-
-  // 100.64.0.0/10 (Carrier-Grade NAT)
-  if (a === 100 && b >= 64 && b <= 127) return true;
 
   return false;
 }
@@ -102,8 +145,42 @@ export async function validateSafeScrapeUrl(
     return { safe: false, error: 'Access to cloud metadata endpoints is strictly forbidden (SSRF protection).' };
   }
 
+  // Strict IPv4 validation: reject malformed IP addresses (such as 999.999.999.999) without DNS lookup
+  const ipCheck = parseAndValidateIpv4(hostname);
+  if (ipCheck.isIpPattern) {
+    if (!ipCheck.valid || !ipCheck.octets) {
+      return { safe: false, error: `Invalid or malformed IPv4 address: "${hostname}"` };
+    }
+
+    const [a] = ipCheck.octets;
+
+    // Loopback 127.0.0.0/8 check
+    if (a === 127) {
+      const isDemoEndpoint = parsed.pathname.startsWith('/api/demo') || parsed.pathname === '/';
+      const allowLocal = options.allowLocalhost !== undefined
+        ? options.allowLocalhost
+        : (isDemoEndpoint || process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test');
+
+      if (!allowLocal) {
+        return { safe: false, error: 'Scraping localhost or loopback destinations is blocked (SSRF protection).' };
+      }
+      return { safe: true, url: parsed };
+    }
+
+    if (isRestrictedIpAddress(hostname)) {
+      const allowLocal = options.allowLocalhost !== undefined
+        ? options.allowLocalhost
+        : (process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test');
+
+      if (!allowLocal) {
+        return { safe: false, error: `Access to private or restricted IP ${hostname} is blocked (SSRF protection).` };
+      }
+    }
+    return { safe: true, url: parsed };
+  }
+
   // Localhost and localhost subdomain check
-  const isLocalHost = hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '127.0.0.1' || hostname === '::1';
+  const isLocalHost = hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '::1';
   const isDemoEndpoint = isLocalHost && (parsed.pathname.startsWith('/api/demo') || parsed.pathname === '/');
   const allowLocal = options.allowLocalhost !== undefined
     ? options.allowLocalhost
@@ -112,16 +189,6 @@ export async function validateSafeScrapeUrl(
   if (isLocalHost) {
     if (!allowLocal) {
       return { safe: false, error: 'Scraping localhost or loopback destinations is blocked (SSRF protection).' };
-    }
-    return { safe: true, url: parsed };
-  }
-
-  // If host is direct IP address, verify it
-  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
-    if (isRestrictedIpAddress(hostname)) {
-      if (!allowLocal) {
-        return { safe: false, error: `Access to private or restricted IP ${hostname} is blocked (SSRF protection).` };
-      }
     }
     return { safe: true, url: parsed };
   }

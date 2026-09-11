@@ -520,7 +520,7 @@ function openHuntiqModal() {
     return;
   }
 
-  const savedAutoSync = localStorage.getItem('huntiq_autosync') === 'true';
+  const savedAutoSync = localStorage.getItem('email_scraper_crm_autosync') === 'true';
   if (elements.huntiqAutosyncToggle) elements.huntiqAutosyncToggle.checked = savedAutoSync;
 
   const isFiltered = state.selectedEmails.size > 0;
@@ -598,7 +598,7 @@ async function confirmHuntiqSync() {
   }
 
   const autoSync = elements.huntiqAutosyncToggle ? elements.huntiqAutosyncToggle.checked : false;
-  localStorage.setItem('huntiq_autosync', String(autoSync));
+  localStorage.setItem('email_scraper_crm_autosync', String(autoSync));
 
   setLoadingState(true, elements.btnConfirmHuntiqSync, `Pushing ${targets.length} leads...`);
 
@@ -1092,7 +1092,7 @@ function mergeRecords(newRecords) {
   renderResults();
 
   // Auto-forward to HUNTIQ CRM if auto-sync is enabled
-  if (localStorage.getItem('huntiq_autosync') === 'true' && newRecords.length > 0) {
+  if (localStorage.getItem('email_scraper_crm_autosync') === 'true' && newRecords.length > 0) {
     triggerAutoHuntiqSync(newRecords);
   }
 }

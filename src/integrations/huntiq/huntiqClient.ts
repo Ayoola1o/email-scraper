@@ -29,7 +29,6 @@ export class HuntIQClient {
 
     if (this.config.apiKey) {
       headers['Authorization'] = `Bearer ${this.config.apiKey}`;
-      headers['x-huntiq-api-key'] = this.config.apiKey;
     }
 
     if (idempotencyKey) {

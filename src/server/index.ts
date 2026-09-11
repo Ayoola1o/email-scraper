@@ -46,6 +46,12 @@ interface ActiveCrawlJob {
   listeners: Array<(event: string, data: any) => void>;
 }
 
+/**
+ * EPHEMERAL IN-MEMORY JOB STORE:
+ * activeJobs tracks runtime state and active SSE listeners for real-time progress.
+ * Note: This state is strictly ephemeral and is NOT durable across server restarts.
+ * External services (including HUNTIQ) must not rely on activeJobs surviving process restarts.
+ */
 const activeJobs = new Map<string, ActiveCrawlJob>();
 
 // Clean up jobs older than 1 hour
@@ -275,6 +281,8 @@ app.post('/api/scrape/crawl/cancel/:jobId', (req: Request, res: Response) => {
 
 /**
  * Batch URL scrape
+ * Strictly validates every submitted URL with SSRF checks (protocol, DNS, private/metadata IPs, redirects, size, timeout)
+ * Returns per-URL status without allowing one unsafe URL to compromise the batch operation.
  */
 app.post('/api/scrape/batch', async (req: Request, res: Response) => {
   try {
@@ -283,24 +291,48 @@ app.post('/api/scrape/batch', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'An array of URLs is required' });
     }
 
-    const cleanUrls = urls
-      .map((u: string) => String(u).trim())
-      .filter((u: string) => u.startsWith('http://') || u.startsWith('https://'));
-
-    if (cleanUrls.length === 0) {
-      return res.status(400).json({ error: 'No valid http/https URLs provided' });
-    }
-
     const uniqueMap = new Map<string, ScrapedEmailRecord>();
     const resultsSummary: Array<{ url: string; success: boolean; emailCount: number; error?: string }> = [];
 
-    for (let i = 0; i < cleanUrls.length; i++) {
-      const targetUrl = cleanUrls[i];
+    for (let i = 0; i < urls.length; i++) {
+      const rawTarget = urls[i];
+      if (typeof rawTarget !== 'string' || !rawTarget.trim()) {
+        resultsSummary.push({ url: String(rawTarget), success: false, emailCount: 0, error: 'Empty or invalid URL string' });
+        continue;
+      }
+
+      const targetUrl = rawTarget.trim();
+
       if (i > 0 && delayMs > 0) {
         await new Promise(r => setTimeout(r, delayMs));
       }
+
+      // Step 1: Pre-validate protocol
+      if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+        resultsSummary.push({
+          url: targetUrl,
+          success: false,
+          emailCount: 0,
+          error: 'Invalid protocol. Only http: and https: are allowed.'
+        });
+        continue;
+      }
+
+      // Step 2: Validate against SSRF (DNS resolution, private/local/metadata IPs, malformed IPs)
+      const validation = await validateSafeScrapeUrl(targetUrl);
+      if (!validation.safe) {
+        resultsSummary.push({
+          url: targetUrl,
+          success: false,
+          emailCount: 0,
+          error: validation.error || 'SSRF validation rejected URL'
+        });
+        continue;
+      }
+
+      // Step 3: Fetch with safeFetch (redirect revalidation, streaming size caps, timeout)
       try {
-        const { records } = await scrapeEmailRecordsFromUrl(targetUrl, { timeout });
+        const { records } = await scrapeEmailRecordsFromUrl(targetUrl, { timeout: parseInt(String(timeout), 10) });
         for (const rec of records) {
           if (!uniqueMap.has(rec.email)) {
             uniqueMap.set(rec.email, rec);
@@ -312,15 +344,15 @@ app.post('/api/scrape/batch', async (req: Request, res: Response) => {
       }
     }
 
-    res.json({
+    return res.json({
       success: true,
-      totalUrlsProcessed: cleanUrls.length,
+      totalUrlsProcessed: urls.length,
       uniqueEmailsFound: uniqueMap.size,
       summary: resultsSummary,
       records: Array.from(uniqueMap.values())
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 

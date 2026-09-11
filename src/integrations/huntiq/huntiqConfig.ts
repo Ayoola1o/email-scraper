@@ -26,7 +26,7 @@ export class HuntIQConfigManager {
    */
   static getConfig(): HuntIQConfig {
     const enabledEnv = process.env.HUNTIQ_INTEGRATION_ENABLED;
-    const isEnabled = enabledEnv !== undefined ? enabledEnv.toLowerCase() === 'true' : true;
+    const isEnabled = enabledEnv !== undefined ? enabledEnv.toLowerCase() === 'true' : false;
 
     return {
       apiUrl: (process.env.HUNTIQ_API_URL || '').trim(),
@@ -38,11 +38,21 @@ export class HuntIQConfigManager {
   }
 
   /**
-   * Checks whether the HUNTIQ integration is enabled and fully configured on the server
+   * Checks whether the HUNTIQ integration is enabled and fully configured on the server.
+   * Configured ONLY when:
+   * 1. HUNTIQ_INTEGRATION_ENABLED=true
+   * 2. HUNTIQ_API_URL exists (non-empty)
+   * 3. HUNTIQ_API_KEY exists (non-empty)
    */
   static isConfigured(): boolean {
     const config = this.getConfig();
-    return Boolean(config.enabled && config.apiUrl && config.apiUrl.length > 0);
+    return Boolean(
+      config.enabled === true &&
+      config.apiUrl &&
+      config.apiUrl.length > 0 &&
+      config.apiKey &&
+      config.apiKey.length > 0
+    );
   }
 
   /**
