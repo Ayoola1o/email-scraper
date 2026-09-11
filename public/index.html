@@ -2,531 +2,73 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EmailScraper Pro - Intelligent Web Email Extraction & Enrichment</title>
-  <meta name="description" content="High-performance email scraper and website crawler. Extract personal leads, company inboxes, and obfuscated contacts with live streaming and multi-format export." />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>EmailScraper Pro - Intelligent Web Email Extraction & HUNTIQ Intelligence</title>
+  <meta name="description" content="High-performance email extraction, domain crawler, MX deliverability verification, contact enrichment, and HUNTIQ CRM synchronization." />
   <link rel="icon" type="image/jpeg" href="/favicon.jpg" />
   <link rel="shortcut icon" href="/favicon.jpg" />
   <link rel="apple-touch-icon" href="/favicon.jpg" />
-  <link rel="stylesheet" href="/css/style.css" />
+
+  <!-- Typography: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* Reset & base styling before React mounts */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #0F172A;
+      color: #F8FAFC;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      overflow-x: hidden;
+    }
+    #root {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Loading Spinner */
+    .app-loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 16px;
+      color: #94A3B8;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(99, 102, 241, 0.15);
+      border-top-color: #6366F1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
-  <div class="app-wrapper">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="brand-section">
-        <div class="brand-logo">
-          <img src="/logo.jpg" alt="EmailScraper Pro Logo" class="brand-logo-img" />
-        </div>
-        <div>
-          <h1 class="brand-title">EmailScraper Pro</h1>
-          <div class="brand-subtitle">
-            <span>High-Precision Web Email Extraction & Intelligence</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="header-actions">
-        <button id="btn-try-demo" class="btn btn-secondary btn-sm" title="Load built-in mock website for safe testing">
-          🧪 Load Demo Target
-        </button>
-        <div class="status-badge">
-          <div class="status-dot"></div>
-          <span>Engine Online</span>
-        </div>
-      </div>
-    </header>
-
-    <!-- KPI Metric Cards -->
-    <section class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon total">📧</div>
-        <div class="stat-info">
-          <span class="stat-label">Total Extracted</span>
-          <span class="stat-value" id="kpi-total">0</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon personal">👤</div>
-        <div class="stat-info">
-          <span class="stat-label">Personal Leads</span>
-          <span class="stat-value" id="kpi-personal">0</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon role">🏢</div>
-        <div class="stat-info">
-          <span class="stat-label">Role & Dept Inboxes</span>
-          <span class="stat-value" id="kpi-role">0</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon domains">🌐</div>
-        <div class="stat-info">
-          <span class="stat-label">Unique Domains</span>
-          <span class="stat-value" id="kpi-domains">0</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Scraper Control Center -->
-    <section class="control-card">
-      <nav class="tab-nav">
-        <button class="tab-button active" data-tab="page">
-          <span>📄</span> Single Page
-        </button>
-        <button class="tab-button" data-tab="crawl">
-          <span>🕷️</span> Deep Website Crawler
-        </button>
-        <button class="tab-button" data-tab="batch">
-          <span>📑</span> Batch URL List
-        </button>
-        <button class="tab-button" data-tab="text">
-          <span>📝</span> Raw Text / Newsletter
-        </button>
-      </nav>
-
-      <!-- Tab 1: Single Page -->
-      <div class="tab-content active" id="tab-page">
-        <form id="form-single-page">
-          <div class="input-row">
-            <div class="input-group">
-              <label class="form-label" for="input-single-url">Target Webpage URL</label>
-              <input type="url" id="input-single-url" class="text-input" placeholder="https://example.com/contact-us" required />
-            </div>
-            <div style="width: 140px;">
-              <label class="form-label" for="input-single-timeout">Timeout (ms)</label>
-              <input type="number" id="input-single-timeout" class="text-input" value="12000" min="1000" max="60000" />
-            </div>
-            <div style="align-self: flex-end;">
-              <button type="submit" id="btn-scrape-single" class="btn btn-primary">
-                ⚡ Scrape Webpage
-              </button>
-            </div>
-          </div>
-          <div class="preset-chips">
-            <span>Quick Presets:</span>
-            <span class="chip" data-url="http://localhost:3000/api/demo">Acme Demo Site (Local)</span>
-            <span class="chip" data-url="http://localhost:3000/api/demo/about">Acme Investors (Local)</span>
-            <span class="chip" data-url="https://news.ycombinator.com">Hacker News</span>
-          </div>
-        </form>
-      </div>
-
-      <!-- Tab 2: Website Crawler -->
-      <div class="tab-content" id="tab-crawl">
-        <form id="form-crawl">
-          <div class="input-row">
-            <div class="input-group">
-              <label class="form-label" for="input-crawl-url">Start Homepage URL</label>
-              <input type="url" id="input-crawl-url" class="text-input" placeholder="https://example.com" required />
-            </div>
-            <div style="align-self: flex-end;">
-              <button type="submit" id="btn-start-crawl" class="btn btn-primary">
-                🚀 Start Deep Crawl
-              </button>
-            </div>
-          </div>
-
-          <div class="options-grid">
-            <div>
-              <label class="form-label" for="input-crawl-depth">Max Depth (Levels)</label>
-              <select id="input-crawl-depth" class="select-input">
-                <option value="1">Depth 1 (Homepage only)</option>
-                <option value="2" selected>Depth 2 (Direct links)</option>
-                <option value="3">Depth 3 (Standard crawl)</option>
-                <option value="4">Depth 4 (Deep discovery)</option>
-              </select>
-            </div>
-            <div>
-              <label class="form-label" for="input-crawl-pages">Max Pages Limit</label>
-              <input type="number" id="input-crawl-pages" class="text-input" value="100" min="1" max="10000" placeholder="e.g. 500" />
-            </div>
-            <div>
-              <label class="form-label" for="input-crawl-delay">Politeness Delay (ms)</label>
-              <input type="number" id="input-crawl-delay" class="text-input" value="250" min="0" max="5000" />
-            </div>
-            <div style="display: flex; align-items: flex-end; padding-bottom: 10px;">
-              <label class="switch-label">
-                <input type="checkbox" id="chk-same-domain" checked />
-                <span>Same domain links only</span>
-              </label>
-            </div>
-          </div>
-        </form>
-      </div>
-
-      <!-- Tab 3: Batch Scraper -->
-      <div class="tab-content" id="tab-batch">
-        <form id="form-batch">
-          <div style="margin-bottom: 16px;">
-            <label class="form-label" for="input-batch-urls">URLs Queue (One per line)</label>
-            <textarea id="input-batch-urls" class="text-area" placeholder="http://localhost:3000/api/demo&#10;http://localhost:3000/api/demo/about&#10;http://localhost:3000/api/demo/team&#10;http://localhost:3000/api/demo/careers"></textarea>
-          </div>
-          <button type="submit" id="btn-start-batch" class="btn btn-primary">
-            ⚡ Start Batch Extraction
-          </button>
-        </form>
-      </div>
-
-      <!-- Tab 4: Raw Text & Newsletter -->
-      <div class="tab-content" id="tab-text">
-        <form id="form-text">
-          <div style="margin-bottom: 16px;">
-            <label class="form-label" for="input-text-content">Paste Raw HTML, Email Thread, or Unstructured Text</label>
-            <textarea id="input-text-content" class="text-area" placeholder="Paste newsletters, email signatures, contact tables, or obfuscated formats like sarah [at] domain.com or &#105;&#110;&#102;&#111;&#64;acme.org..."></textarea>
-          </div>
-          <button type="submit" id="btn-extract-text" class="btn btn-primary">
-            ✨ Extract Emails from Content
-          </button>
-        </form>
-      </div>
-    </section>
-
-    <!-- Live Crawl Telemetry Console -->
-    <section class="telemetry-card" id="telemetry-card">
-      <div class="telemetry-header">
-        <div class="telemetry-title">
-          <div class="radar-spinner"></div>
-          <span id="telemetry-status">Crawl in progress...</span>
-        </div>
-        <button id="btn-cancel-crawl" class="btn btn-danger btn-sm">
-          ✕ Cancel Crawl
-        </button>
-      </div>
-
-      <div class="progress-bar-track">
-        <div class="progress-bar-fill" id="telemetry-progress-bar"></div>
-      </div>
-
-      <div class="telemetry-details">
-        <div class="telemetry-item">
-          <span>Pages Crawled:</span>
-          <strong id="telemetry-pages">0 / 30</strong>
-        </div>
-        <div class="telemetry-item">
-          <span>Emails Discovered:</span>
-          <strong id="telemetry-found">0</strong>
-        </div>
-        <div class="telemetry-item">
-          <span>Current Depth:</span>
-          <strong id="telemetry-depth">0</strong>
-        </div>
-        <div class="telemetry-item">
-          <span>In Queue:</span>
-          <strong id="telemetry-queue">0</strong>
-        </div>
-      </div>
-
-      <div class="live-url-ticker" id="telemetry-url-ticker">
-        Target: -
-      </div>
-    </section>
-
-    <!-- Results Workspace -->
-    <section class="results-card">
-      <!-- Toolbar -->
-      <div class="results-toolbar">
-        <div class="search-filter-group">
-          <div class="search-input-wrapper">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="search-input" class="text-input" placeholder="Search emails, domains, or snippets..." />
-          </div>
-
-          <select id="domain-filter-select" class="select-input" style="max-width: 170px;">
-            <option value="all">All Domains</option>
-          </select>
-
-          <div class="filter-pills">
-            <button class="filter-pill active" data-type="all">All</button>
-            <button class="filter-pill" data-type="personal">Personal</button>
-            <button class="filter-pill" data-type="role">Role / Dept</button>
-            <button class="filter-pill" data-type="deliverable">✓ Deliverable Only</button>
-          </div>
-        </div>
-
-        <div class="export-actions">
-          <!-- Folder Action -->
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <select id="folder-filter-select" class="select-input btn-sm" style="max-width: 170px;" title="Switch between Active Session and Saved Folders">
-              <option value="session">⚡ Active Session</option>
-            </select>
-            <button id="btn-save-to-folder" class="btn btn-secondary btn-sm" title="Save current search or selected leads to a folder">
-              📁 Save to Folder
-            </button>
-          </div>
-
-          <!-- Column Toggle Button -->
-          <button id="btn-toggle-columns-modal" class="btn btn-secondary btn-sm" title="Toggle fields to show in table and include in export">
-            ⚙️ Columns
-          </button>
-
-          <!-- Live MX Deliverability Verification Button -->
-          <button id="btn-verify-mx" class="btn btn-secondary btn-sm" title="Verify live MX record deliverability and move dead emails out">
-            🛡️ Verify MX
-          </button>
-
-          <!-- Move Dead Emails Out Button -->
-          <button id="btn-purge-dead" class="btn btn-secondary btn-sm" title="Move all dead/undeliverable emails out of the active list into the 'Dead / Bounced Emails' folder">
-            🧹 Move Dead Out
-          </button>
-
-          <!-- HUNTIQ CRM Sync Button -->
-          <button id="btn-sync-huntiq-modal" class="btn btn-primary btn-sm" title="Push leads directly into HUNTIQ CRM & Outreach inbox">
-            🚀 Sync to HUNTIQ
-          </button>
-
-          <span id="selected-count-text" style="font-size: 13px; color: var(--text-faint); margin-right: 4px;">0 selected of 0</span>
-          
-          <button id="btn-copy-selected" class="btn btn-secondary btn-sm" title="Copy emails to clipboard">
-            📋 Copy
-          </button>
-
-          <button id="btn-export-csv" class="btn btn-secondary btn-sm" title="Download Excel-compatible CSV with UTF-8 BOM">
-            📊 Export CSV
-          </button>
-
-          <button id="btn-export-json" class="btn btn-secondary btn-sm" title="Download structured JSON format">
-            { } JSON
-          </button>
-
-          <button id="btn-export-txt" class="btn btn-secondary btn-sm" title="Download clean one-per-line list">
-            📄 TXT List
-          </button>
-
-          <button id="btn-export-vcf" class="btn btn-secondary btn-sm" title="Download vCard file for CRM / Contacts">
-            📇 vCard (.vcf)
-          </button>
-
-          <button id="btn-clear-results" class="btn btn-danger btn-sm" title="Clear table">
-            🗑️ Clear
-          </button>
-        </div>
-      </div>
-
-      <!-- Table View -->
-      <div class="table-container" id="table-container" style="display: none;">
-        <table class="results-table">
-          <thead>
-            <tr>
-              <th style="width: 40px;">
-                <input type="checkbox" id="chk-select-all" />
-              </th>
-              <th id="th-email">Email Address</th>
-              <th id="th-name">Contact & Role</th>
-              <th id="th-mxStatus">Deliverability</th>
-              <th id="th-phone">Phone</th>
-              <th id="th-type">Type</th>
-              <th id="th-domain">Domain</th>
-              <th id="th-linkedin">Social</th>
-              <th id="th-sourceUrl">Discovered Source</th>
-              <th id="th-pageTitle">Page Title</th>
-              <th id="th-contextSnippet">Context Snippet</th>
-              <th id="th-discoveredAt">Discovered At</th>
-            </tr>
-          </thead>
-          <tbody id="results-table-body">
-            <!-- Rows injected by JavaScript -->
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Pagination Controls -->
-      <div class="pagination-bar" id="pagination-bar" style="display: none;">
-        <div class="pagination-info">
-          <label class="form-label" style="margin-bottom: 0; margin-right: 8px;">Show per page:</label>
-          <select id="per-page-select" class="select-input btn-sm" style="width: 110px;">
-            <option value="10">10 / page</option>
-            <option value="25">25 / page</option>
-            <option value="50" selected>50 / page</option>
-            <option value="100">100 / page</option>
-            <option value="200">200 / page</option>
-            <option value="500">500 / page</option>
-            <option value="all">Show All</option>
-          </select>
-          <span id="pagination-status" style="margin-left: 14px; font-size: 13px; color: var(--text-muted);">
-            Showing 1 - 50 of 50
-          </span>
-        </div>
-
-        <div class="pagination-buttons">
-          <button id="btn-page-first" class="btn btn-secondary btn-sm" title="First Page">« First</button>
-          <button id="btn-page-prev" class="btn btn-secondary btn-sm" title="Previous Page">‹ Prev</button>
-          <span id="current-page-label" style="font-size: 13px; font-weight: 600; color: var(--text-main); margin: 0 8px;">Page 1 of 1</span>
-          <button id="btn-page-next" class="btn btn-secondary btn-sm" title="Next Page">Next ›</button>
-          <button id="btn-page-last" class="btn btn-secondary btn-sm" title="Last Page">Last »</button>
-        </div>
-      </div>
-
-      <!-- Empty State -->
-      <div class="empty-state" id="empty-state">
-        <div class="empty-icon">📫</div>
-        <h3 class="empty-title">No Email Leads Extracted Yet</h3>
-        <p class="empty-desc">
-          Enter a target URL above, initiate a deep crawl, or click <strong>Load Demo Target</strong> to test with our built-in test directory.
-        </p>
-      </div>
-    </section>
-  </div>
-
-  <!-- Save to Folder Modal -->
-  <div class="modal-backdrop" id="folder-modal" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="modal-title">📁 Save Search to Folder</h3>
-        <button id="btn-close-folder-modal" class="btn-icon" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
-      </div>
-      <div class="modal-body">
-        <div style="margin-bottom: 16px;">
-          <label class="form-label">Choose Target Folder</label>
-          <select id="modal-folder-select" class="select-input">
-            <!-- Populated dynamically -->
-          </select>
-        </div>
-        <div style="margin-bottom: 16px;">
-          <label class="form-label">Or Create New Folder</label>
-          <input type="text" id="modal-new-folder-input" class="text-input" placeholder="e.g. Real Estate Brokers, Tech Founders" />
-        </div>
-        <div id="modal-save-summary" style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
-          Will save 0 email leads.
-        </div>
-      </div>
-      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
-        <button id="btn-cancel-modal" class="btn btn-secondary btn-sm">Cancel</button>
-        <button id="btn-confirm-save-folder" class="btn btn-primary btn-sm">Save to Folder</button>
-      </div>
+  <div id="root">
+    <div class="app-loader">
+      <div class="spinner"></div>
+      <div>Loading EmailScraper Pro Dashboard...</div>
     </div>
   </div>
 
-  <!-- Configure Columns Modal -->
-  <div class="modal-backdrop" id="columns-modal" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="modal-title">⚙️ Configure Export & Table Fields</h3>
-        <button id="btn-close-columns-modal" class="btn-icon" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
-          Select which columns you want displayed and included in your exported files (CSV, JSON, vCard):
-        </p>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
-          <label class="switch-label">
-            <input type="checkbox" id="col-email" checked disabled />
-            <span><strong>Email</strong> (Required)</span>
-          </label>
-          <label class="switch-label">
-            <input type="checkbox" id="col-name" checked />
-            <span><strong>Name & Role</strong></span>
-          </label>
-          <label class="switch-label">
-            <input type="checkbox" id="col-mxStatus" checked />
-            <span><strong>MX Deliverability</strong></span>
-          </label>
-          <label class="switch-label">
-            <input type="checkbox" id="col-phone" checked />
-            <span><strong>Phone Number</strong></span>
-          </label>
-          <label class="switch-label">
-            <input type="checkbox" id="col-type" checked />
-            <span><strong>Type</strong> (Personal/Role)</span>
-          </label>
-          <label class="switch-label">
-            <input type="checkbox" id="col-domain" checked />
-            <span><strong>Domain</strong></span>
-          </label>
-          <label class="switch-label">
-            <input type="checkbox" id="col-linkedin" checked />
-            <span><strong>LinkedIn Profile</strong></span>
-          </label>
-          <label class="switch-label">
-            <input type="checkbox" id="col-sourceUrl" checked />
-            <span><strong>Source URL</strong></span>
-          </label>
-          <label class="switch-label">
-            <input type="checkbox" id="col-pageTitle" />
-            <span><strong>Page Title</strong></span>
-          </label>
-          <label class="switch-label">
-            <input type="checkbox" id="col-contextSnippet" checked />
-            <span><strong>Context Snippet</strong></span>
-          </label>
-          <label class="switch-label">
-            <input type="checkbox" id="col-discoveredAt" />
-            <span><strong>Discovered At</strong></span>
-          </label>
-        </div>
-
-        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
-          <button id="btn-preset-all" class="chip">Select All</button>
-          <button id="btn-preset-minimal" class="chip">Email & Domain Only</button>
-          <button id="btn-preset-enrichment" class="chip">Full Enrichment (Name, MX, Phone, LinkedIn)</button>
-          <button id="btn-preset-outreach" class="chip">Outreach Pack (Email, Name, MX, Snippet)</button>
-        </div>
-      </div>
-      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
-        <button id="btn-apply-columns" class="btn btn-primary btn-sm">Apply Changes</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- HUNTIQ CRM Lead Ingestion Modal -->
-  <div class="modal-backdrop" id="huntiq-modal" style="display: none;">
-    <div class="modal-card" style="max-width: 540px;">
-      <div class="modal-header">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 20px;">📡</span>
-          <h3 class="modal-title">Push to HUNTIQ CRM</h3>
-        </div>
-        <button id="btn-close-huntiq-modal" class="btn-icon" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;">✕</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
-          Ingest discovered leads, provenance evidence, and deliverability status directly into <strong>HUNTIQ CRM</strong> via the server-managed integration.
-        </p>
-
-        <!-- Server-Managed Integration Status Panel -->
-        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">HUNTIQ Integration</span>
-            <span id="huntiq-status-badge" class="badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 11px; padding: 2px 8px; border-radius: 6px;">
-              Server-Managed
-            </span>
-          </div>
-          <div id="huntiq-status-detail" style="font-size: 12px; color: var(--text-faint); line-height: 1.4;">
-            Credentials and workspace routing are securely determined by server environment variables (<code>HUNTIQ_API_URL</code>, <code>HUNTIQ_API_KEY</code>).
-          </div>
-        </div>
-
-        <div style="margin-bottom: 16px;">
-          <label class="switch-label">
-            <input type="checkbox" id="huntiq-autosync-toggle" />
-            <span><strong>Auto-sync new leads</strong> automatically when scrapes complete</span>
-          </label>
-        </div>
-
-        <div class="telemetry-item" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
-          <span style="font-size: 12px; color: var(--text-muted);">Payload Summary:</span>
-          <strong id="huntiq-sync-summary" style="font-size: 13px; color: #a5b4fc;">Ready to push 0 leads to HUNTIQ</strong>
-        </div>
-      </div>
-      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
-        <button id="btn-test-huntiq-conn" class="btn btn-secondary btn-sm" title="Test if HUNTIQ endpoint is reachable">
-          🔌 Test Connection
-        </button>
-        <div style="display: flex; gap: 10px;">
-          <button id="btn-cancel-huntiq-modal" class="btn btn-secondary btn-sm">Cancel</button>
-          <button id="btn-confirm-huntiq-sync" class="btn btn-primary btn-sm">🚀 Push Leads to HUNTIQ</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Toast Notification Container -->
-  <div class="toast-container" id="toast-container"></div>
-
-  <script src="/js/app.js"></script>
+  <!-- Compiled React App Bundle -->
+  <script src="/js/bundle.js"></script>
 </body>
 </html>
