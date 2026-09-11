@@ -3,62 +3,69 @@
  * 
  * Manages server-side configuration and credentials for HUNTIQ CRM.
  * NEVER exposes API keys or secrets to the frontend.
+ * Strictly avoids client-supplied workspace IDs or default fallbacks.
  */
 
 export interface HuntIQConfig {
   apiUrl: string;
   apiKey?: string;
-  workspaceId?: string;
+  enabled: boolean;
   timeoutMs: number;
   maxRetries: number;
 }
 
+export interface HuntIQUnconfiguredError {
+  success: false;
+  code: 'HUNTIQ_INTEGRATION_NOT_CONFIGURED';
+  message: string;
+}
+
 export class HuntIQConfigManager {
   /**
-   * Retrieves server configuration from environment variables
+   * Retrieves server configuration exclusively from environment variables
    */
   static getConfig(): HuntIQConfig {
+    const enabledEnv = process.env.HUNTIQ_INTEGRATION_ENABLED;
+    const isEnabled = enabledEnv !== undefined ? enabledEnv.toLowerCase() === 'true' : true;
+
     return {
       apiUrl: (process.env.HUNTIQ_API_URL || '').trim(),
       apiKey: (process.env.HUNTIQ_API_KEY || '').trim() || undefined,
-      workspaceId: (process.env.HUNTIQ_WORKSPACE_ID || '').trim() || undefined,
+      enabled: isEnabled,
       timeoutMs: parseInt(process.env.HUNTIQ_TIMEOUT_MS || '10000', 10),
       maxRetries: parseInt(process.env.HUNTIQ_MAX_RETRIES || '3', 10)
     };
   }
 
   /**
-   * Validates whether the HUNTIQ integration has required configuration
+   * Checks whether the HUNTIQ integration is enabled and fully configured on the server
    */
-  static validateConfig(): { valid: boolean; missing: string[] } {
-    const missing: string[] = [];
-    if (!process.env.HUNTIQ_API_URL) {
-      missing.push('HUNTIQ_API_URL');
-    }
+  static isConfigured(): boolean {
+    const config = this.getConfig();
+    return Boolean(config.enabled && config.apiUrl && config.apiUrl.length > 0);
+  }
+
+  /**
+   * Returns a standard unconfigured error payload matching the specification
+   */
+  static getUnconfiguredError(): HuntIQUnconfiguredError {
     return {
-      valid: missing.length === 0,
-      missing
+      success: false,
+      code: 'HUNTIQ_INTEGRATION_NOT_CONFIGURED',
+      message: 'HUNTIQ integration is not configured on this server.'
     };
   }
 
   /**
-   * Checks if basic HUNTIQ endpoint configuration is present
-   */
-  static isConfigured(): boolean {
-    return Boolean(process.env.HUNTIQ_API_URL && process.env.HUNTIQ_API_URL.trim().length > 0);
-  }
-
-  /**
-   * Returns a sanitized view of configuration suitable for diagnostics
-   * (Masks the API key completely)
+   * Returns a sanitized diagnostic summary without leaking secrets
    */
   static getSanitizedDiagnostics() {
     const config = this.getConfig();
     return {
       isConfigured: this.isConfigured(),
-      apiUrl: config.apiUrl || '(not set)',
+      enabled: config.enabled,
+      hasApiUrl: Boolean(config.apiUrl),
       hasApiKey: Boolean(config.apiKey),
-      workspaceId: config.workspaceId || '(not set)',
       timeoutMs: config.timeoutMs,
       maxRetries: config.maxRetries
     };

@@ -345,8 +345,8 @@ HUNTIQ_API_URL=https://app.huntiq.com/api/v1/integrations/lead-ingest
 # Secret HUNTIQ API Key (Server-side only)
 HUNTIQ_API_KEY=hnt_live_your_api_key_here
 
-# Target Workspace Identifier
-HUNTIQ_WORKSPACE_ID=ws-default-001
+# Enable or disable HUNTIQ integration
+HUNTIQ_INTEGRATION_ENABLED=true
 
 # Optional client timeout and retry tuning
 HUNTIQ_TIMEOUT_MS=10000

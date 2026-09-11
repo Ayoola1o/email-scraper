@@ -171,31 +171,24 @@ export async function scrapeEmailRecordsFromWebsite(
           await page.close();
         }
       } else {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        const response = await fetch(url, {
-          signal: controller.signal,
-          headers: {
-            'User-Agent': userAgent,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          },
+        const fetchResult = await (await import('../utils/security')).safeFetch(url, {
+          timeout,
+          userAgent,
+          allowLocalhost: process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test'
         });
 
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status} ${response.statusText}`);
+        if (fetchResult.status >= 400) {
+          throw new Error(`HTTP ${fetchResult.status}`);
         }
 
-        const contentType = response.headers.get('content-type') || '';
-        if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+        const contentType = fetchResult.headers.get('content-type') || '';
+        if (contentType && !contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
           continue;
         }
 
-        html = await response.text();
+        html = fetchResult.text;
         pageTitle = extractPageTitle(html);
-        pageRecords = extractEmailRecordsFromHtml(html, url, pageTitle, depth);
+        pageRecords = extractEmailRecordsFromHtml(html, fetchResult.finalUrl, pageTitle, depth);
       }
 
       // Record newly found emails

@@ -152,10 +152,8 @@ const elements = {
   huntiqModal: document.getElementById('huntiq-modal'),
   btnCloseHuntiqModal: document.getElementById('btn-close-huntiq-modal'),
   btnCancelHuntiqModal: document.getElementById('btn-cancel-huntiq-modal'),
-  huntiqUrlInput: document.getElementById('huntiq-url-input'),
-  huntiqWorkspaceInput: document.getElementById('huntiq-workspace-input'),
-  huntiqApiKeyInput: document.getElementById('huntiq-apikey-input'),
-  huntiqDraftToggle: document.getElementById('huntiq-draft-toggle'),
+  huntiqStatusBadge: document.getElementById('huntiq-status-badge'),
+  huntiqStatusDetail: document.getElementById('huntiq-status-detail'),
   huntiqAutosyncToggle: document.getElementById('huntiq-autosync-toggle'),
   huntiqSyncSummary: document.getElementById('huntiq-sync-summary'),
   btnTestHuntiqConn: document.getElementById('btn-test-huntiq-conn'),
@@ -522,17 +520,7 @@ function openHuntiqModal() {
     return;
   }
 
-  // Load saved configuration from localStorage
-  const savedUrl = localStorage.getItem('huntiq_url') || 'http://localhost:3001/api/v1/integrations/lead-ingest';
-  const savedWorkspace = localStorage.getItem('huntiq_workspace') || 'ws-default-001';
-  const savedApiKey = localStorage.getItem('huntiq_apikey') || '';
-  const savedDraft = localStorage.getItem('huntiq_draft') !== 'false';
   const savedAutoSync = localStorage.getItem('huntiq_autosync') === 'true';
-
-  if (elements.huntiqUrlInput) elements.huntiqUrlInput.value = savedUrl;
-  if (elements.huntiqWorkspaceInput) elements.huntiqWorkspaceInput.value = savedWorkspace;
-  if (elements.huntiqApiKeyInput) elements.huntiqApiKeyInput.value = savedApiKey;
-  if (elements.huntiqDraftToggle) elements.huntiqDraftToggle.checked = savedDraft;
   if (elements.huntiqAutosyncToggle) elements.huntiqAutosyncToggle.checked = savedAutoSync;
 
   const isFiltered = state.selectedEmails.size > 0;
@@ -543,42 +531,61 @@ function openHuntiqModal() {
   }
 
   elements.huntiqModal.style.display = 'flex';
+  testHuntiqConnection(true); // Probe server configuration status
 }
 
 function closeHuntiqModal() {
   elements.huntiqModal.style.display = 'none';
 }
 
-async function testHuntiqConnection() {
-  const url = elements.huntiqUrlInput ? elements.huntiqUrlInput.value.trim() : '';
-
-  setLoadingState(true, elements.btnTestHuntiqConn, 'Testing...');
+async function testHuntiqConnection(silent = false) {
+  if (!silent) setLoadingState(true, elements.btnTestHuntiqConn, 'Testing...');
 
   try {
-    // Prefer server-configured integration endpoint
-    const endpoint = url ? '/api/sync/huntiq/test' : '/api/integrations/huntiq/test';
-    const body = url ? JSON.stringify({ huntiqApiUrl: url }) : undefined;
-
-    const res = await fetch(endpoint, {
+    const res = await fetch('/api/integrations/huntiq/test', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body
+      headers: { 'Content-Type': 'application/json' }
     });
     const data = await res.json();
 
-    if (data.reachable) {
-      if (data.authenticated === false) {
-        showToast(`⚠️ HUNTIQ reachable but authentication rejected. Check HUNTIQ_API_KEY.`, 'warning');
-      } else {
-        showToast(`✓ HUNTIQ reachable & verified! (${data.message || 'Ready'})`, 'success');
+    if (elements.huntiqStatusBadge && elements.huntiqStatusDetail) {
+      if (data.code === 'HUNTIQ_INTEGRATION_NOT_CONFIGURED' || res.status === 503) {
+        elements.huntiqStatusBadge.textContent = 'Not Configured';
+        elements.huntiqStatusBadge.style.background = 'rgba(244, 63, 94, 0.2)';
+        elements.huntiqStatusBadge.style.color = '#f43f5e';
+        elements.huntiqStatusBadge.style.borderColor = 'rgba(244, 63, 94, 0.4)';
+        elements.huntiqStatusDetail.textContent = 'HUNTIQ integration is not configured on this server. Set HUNTIQ_API_URL and HUNTIQ_API_KEY in the server environment.';
+        if (!silent) showToast('⚠️ HUNTIQ integration is not configured on this server.', 'error');
+        return;
       }
-    } else {
-      showToast(`✕ Could not reach HUNTIQ: ${data.message || data.error}`, 'error');
+
+      if (data.reachable && data.authenticated) {
+        elements.huntiqStatusBadge.textContent = 'Connected';
+        elements.huntiqStatusBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+        elements.huntiqStatusBadge.style.color = '#10b981';
+        elements.huntiqStatusBadge.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+        elements.huntiqStatusDetail.textContent = 'Server-managed connection verified & authenticated with HUNTIQ.';
+        if (!silent) showToast(`✓ HUNTIQ connected and verified! (${data.message || 'Ready'})`, 'success');
+      } else if (data.reachable && !data.authenticated) {
+        elements.huntiqStatusBadge.textContent = 'Auth Rejected';
+        elements.huntiqStatusBadge.style.background = 'rgba(245, 158, 11, 0.2)';
+        elements.huntiqStatusBadge.style.color = '#f59e0b';
+        elements.huntiqStatusBadge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+        elements.huntiqStatusDetail.textContent = 'HUNTIQ server reachable, but authentication was rejected. Please verify HUNTIQ_API_KEY on the server.';
+        if (!silent) showToast('⚠️ Authentication rejected by HUNTIQ. Check HUNTIQ_API_KEY.', 'warning');
+      } else {
+        elements.huntiqStatusBadge.textContent = 'Unreachable';
+        elements.huntiqStatusBadge.style.background = 'rgba(244, 63, 94, 0.2)';
+        elements.huntiqStatusBadge.style.color = '#f43f5e';
+        elements.huntiqStatusBadge.style.borderColor = 'rgba(244, 63, 94, 0.4)';
+        elements.huntiqStatusDetail.textContent = `Server cannot connect to HUNTIQ: ${data.message || data.error || 'Connection failed'}`;
+        if (!silent) showToast(`✕ Could not reach HUNTIQ: ${data.message || data.error}`, 'error');
+      }
     }
   } catch (err) {
-    showToast(`Test failed: ${err.message}`, 'error');
+    if (!silent) showToast(`Test failed: ${err.message}`, 'error');
   } finally {
-    setLoadingState(false, elements.btnTestHuntiqConn, '🔌 Test Connection');
+    if (!silent) setLoadingState(false, elements.btnTestHuntiqConn, '🔌 Test Connection');
   }
 }
 
@@ -608,6 +615,9 @@ async function confirmHuntiqSync() {
     const data = await res.json();
 
     if (!res.ok || !data.success) {
+      if (data.code === 'HUNTIQ_INTEGRATION_NOT_CONFIGURED') {
+        throw new Error('HUNTIQ integration is not configured on this server. Contact administrator.');
+      }
       throw new Error(data.error || 'Failed to push leads to HUNTIQ');
     }
 
@@ -720,22 +730,34 @@ async function handleVerifyMxDeliverability() {
     });
 
     if (deadRecords.length > 0) {
-      // Move dead records out of the active scraped list
+      // Step 1: Safely persist quarantine record first
+      try {
+        await saveDeadRecordsToQuarantineFolder(deadRecords);
+      } catch (quarantineErr) {
+        // If quarantine persistence fails:
+        // - retain original active records intact
+        // - show explicit error
+        // - prevent silent record loss
+        showToast(`⚠️ Verification completed, but quarantine archiving failed: ${quarantineErr.message}. Dead emails were retained in active view.`, 'error');
+        updateKPIs();
+        populateDomainFilter();
+        renderResults();
+        return;
+      }
+
+      // Step 2: ONLY after quarantine persistence succeeds, archive active records
       state.records = validRecords;
       if (state.activeFolder === 'session') {
         state.sessionRecords = validRecords;
       }
       deadRecords.forEach(r => state.selectedEmails.delete(r.email));
 
-      // Automatically store in "Dead / Bounced Emails" folder
-      saveDeadRecordsToQuarantineFolder(deadRecords);
-
       updateKPIs();
       populateDomainFilter();
       renderResults();
 
       showToast(
-        `🛡️ MX Verification: Kept ${validRecords.length} deliverable leads. Moved ${deadRecords.length} dead email(s) out of the list into "Dead / Bounced Emails" folder!`,
+        `🛡️ MX Verification: Kept ${validRecords.length} deliverable leads. Safely quarantined ${deadRecords.length} dead email(s) into "Dead / Bounced Emails" folder!`,
         'success'
       );
     } else {
@@ -760,15 +782,24 @@ async function handleVerifyMxDeliverability() {
 }
 
 /**
- * Moves any dead/undeliverable emails out of the active scraped list
+ * Moves any dead/undeliverable emails out of the active scraped list with safety guarantees
  */
-function handlePurgeDeadEmails() {
+async function handlePurgeDeadEmails() {
   const deadRecords = state.records.filter(r => r.mxStatus === 'undeliverable');
   if (deadRecords.length === 0) {
     showToast('No dead emails detected in the current list. Click "🛡️ Verify MX" to test deliverability first.', 'info');
     return;
   }
 
+  // Step 1: Persist to quarantine folder first
+  try {
+    await saveDeadRecordsToQuarantineFolder(deadRecords);
+  } catch (quarantineErr) {
+    showToast(`⚠️ Quarantine save failed: ${quarantineErr.message}. Dead emails retained in active view.`, 'error');
+    return;
+  }
+
+  // Step 2: Only after successful persistence, remove from active records
   const validRecords = state.records.filter(r => r.mxStatus !== 'undeliverable');
   state.records = validRecords;
   if (state.activeFolder === 'session') {
@@ -776,46 +807,48 @@ function handlePurgeDeadEmails() {
   }
   deadRecords.forEach(r => state.selectedEmails.delete(r.email));
 
-  saveDeadRecordsToQuarantineFolder(deadRecords);
   updateKPIs();
   populateDomainFilter();
   renderResults();
 
-  showToast(`🧹 Moved ${deadRecords.length} dead email(s) out of the list into "Dead / Bounced Emails" folder!`, 'success');
+  showToast(`🧹 Safely moved ${deadRecords.length} dead email(s) out of the list into "Dead / Bounced Emails" folder!`, 'success');
 }
 
 /**
  * Automatically archives dead/undeliverable leads into a dedicated folder
+ * Guarantees confirmation and throws on failure to prevent data loss
  */
 async function saveDeadRecordsToQuarantineFolder(deadRecords) {
-  if (!Array.isArray(deadRecords) || deadRecords.length === 0) return;
-  try {
-    let deadFolder = state.folders.find(f => f.name === 'Dead / Bounced Emails');
-    let folderId = deadFolder ? deadFolder.id : null;
+  if (!Array.isArray(deadRecords) || deadRecords.length === 0) return true;
 
-    if (!folderId) {
-      const createRes = await fetch('/api/folders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Dead / Bounced Emails' })
-      });
-      const createData = await createRes.json();
-      if (createData.success && createData.folder) {
-        folderId = createData.folder.id;
-      }
-    }
+  let deadFolder = state.folders.find(f => f.name === 'Dead / Bounced Emails');
+  let folderId = deadFolder ? deadFolder.id : null;
 
-    if (folderId) {
-      await fetch(`/api/folders/${folderId}/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ records: deadRecords })
-      });
-      await loadFolders();
+  if (!folderId) {
+    const createRes = await fetch('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Dead / Bounced Emails' })
+    });
+    if (!createRes.ok) throw new Error('Failed to create quarantine folder');
+    const createData = await createRes.json();
+    if (!createData.success || !createData.folder) {
+      throw new Error(createData.error || 'Failed to create quarantine folder');
     }
-  } catch (err) {
-    console.warn('Failed to save dead emails to quarantine folder:', err);
+    folderId = createData.folder.id;
   }
+
+  const saveRes = await fetch(`/api/folders/${folderId}/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ records: deadRecords })
+  });
+  if (!saveRes.ok) throw new Error('Failed to save records to quarantine folder');
+  const saveData = await saveRes.json();
+  if (!saveData.success) throw new Error(saveData.error || 'Failed to persist quarantine records');
+
+  await loadFolders();
+  return true;
 }
 
 /* ==========================================================================

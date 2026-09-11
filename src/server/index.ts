@@ -378,11 +378,18 @@ app.post('/api/export', (req: Request, res: Response) => {
 /**
  * Connection & health check for configured HUNTIQ integration
  */
+/**
+ * Connection & health check for configured HUNTIQ integration
+ */
 app.post('/api/integrations/huntiq/test', async (req: Request, res: Response) => {
   try {
+    if (!HuntIQConfigManager.isConfigured()) {
+      return res.status(503).json(HuntIQConfigManager.getUnconfiguredError());
+    }
     const client = new HuntIQClient();
     const result = await client.checkConnection();
-    return res.json(result);
+    const httpStatus = result.success ? 200 : (result.statusCode || (result.authenticated === false ? 401 : 502));
+    return res.status(httpStatus).json(result);
   } catch (err: any) {
     return res.status(500).json({
       success: false,
@@ -400,6 +407,10 @@ app.post('/api/integrations/huntiq/test', async (req: Request, res: Response) =>
  */
 app.post('/api/integrations/huntiq/sync', async (req: Request, res: Response) => {
   try {
+    if (!HuntIQConfigManager.isConfigured()) {
+      return res.status(503).json(HuntIQConfigManager.getUnconfiguredError());
+    }
+
     const { records, jobId, companyDomain, companyWebsite, companyName, sourceType } = req.body;
     if (!Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ error: 'Valid records array is required' });
@@ -417,7 +428,10 @@ app.post('/api/integrations/huntiq/sync', async (req: Request, res: Response) =>
     const result = await client.syncContacts(payload);
     return res.json(result);
   } catch (err: any) {
-    const isAuth = err.message && (err.message.includes('401') || err.message.includes('Unauthorized'));
+    if (err.code === 'HUNTIQ_INTEGRATION_NOT_CONFIGURED') {
+      return res.status(503).json(HuntIQConfigManager.getUnconfiguredError());
+    }
+    const isAuth = err.statusCode === 401 || (err.message && (err.message.includes('401') || err.message.includes('Unauthorized')));
     const isConnRefused = err.cause && err.cause.code === 'ECONNREFUSED';
     const statusCode = isAuth ? 401 : isConnRefused ? 502 : 500;
     return res.status(statusCode).json({
@@ -429,12 +443,16 @@ app.post('/api/integrations/huntiq/sync', async (req: Request, res: Response) =>
 
 /**
  * Backward compatibility: Deprecated sync endpoint
- * Routes through HuntIQClient and strips unsafe/fabricated client overrides
+ * Routes through HuntIQClient and strictly ignores client-controlled credentials/workspaces
  */
 app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
   res.setHeader('Warning', '299 - "This endpoint is deprecated. Use /api/integrations/huntiq/sync instead."');
   try {
-    const { records, huntiqApiUrl, apiKey, workspaceId, source = 'EXTERNAL_EMAIL_SCRAPER' } = req.body;
+    if (!HuntIQConfigManager.isConfigured()) {
+      return res.status(503).json(HuntIQConfigManager.getUnconfiguredError());
+    }
+
+    const { records } = req.body;
     if (!Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ error: 'Valid records array is required' });
     }
@@ -443,13 +461,7 @@ app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
       sourceType: 'website_email_scraper'
     });
 
-    // In testing/local environments, allow URL override for mock server testing
-    const client = new HuntIQClient({
-      apiUrl: huntiqApiUrl || process.env.HUNTIQ_API_URL,
-      apiKey: apiKey || process.env.HUNTIQ_API_KEY,
-      workspaceId: workspaceId || process.env.HUNTIQ_WORKSPACE_ID
-    });
-
+    const client = new HuntIQClient();
     const result = await client.syncContacts(payload);
 
     return res.json({
@@ -459,8 +471,11 @@ app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
       huntiqResponse: result.huntiqResponse || result
     });
   } catch (err: any) {
+    if (err.code === 'HUNTIQ_INTEGRATION_NOT_CONFIGURED') {
+      return res.status(503).json(HuntIQConfigManager.getUnconfiguredError());
+    }
     const isConnRefused = err.cause && err.cause.code === 'ECONNREFUSED';
-    const isAuth = err.message && err.message.includes('401');
+    const isAuth = err.statusCode === 401 || (err.message && err.message.includes('401'));
     const status = isAuth ? 401 : isConnRefused ? 502 : 500;
     return res.status(status).json({
       success: false,
@@ -475,12 +490,10 @@ app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
 app.post('/api/sync/huntiq/test', async (req: Request, res: Response) => {
   res.setHeader('Warning', '299 - "This endpoint is deprecated. Use /api/integrations/huntiq/test instead."');
   try {
-    const { huntiqApiUrl, apiKey, workspaceId } = req.body;
-    const client = new HuntIQClient({
-      apiUrl: huntiqApiUrl || process.env.HUNTIQ_API_URL,
-      apiKey: apiKey || process.env.HUNTIQ_API_KEY,
-      workspaceId: workspaceId || process.env.HUNTIQ_WORKSPACE_ID
-    });
+    if (!HuntIQConfigManager.isConfigured()) {
+      return res.status(503).json(HuntIQConfigManager.getUnconfiguredError());
+    }
+    const client = new HuntIQClient();
     const result = await client.checkConnection();
     res.json(result);
   } catch (err: any) {

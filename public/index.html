@@ -484,33 +484,23 @@
       </div>
       <div class="modal-body">
         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
-          Directly ingest verified leads, contact details, and deliverability status into your <strong>HUNTIQ CRM</strong> workspace.
+          Ingest discovered leads, provenance evidence, and deliverability status directly into <strong>HUNTIQ CRM</strong> via the server-managed integration.
         </p>
-        
-        <div style="margin-bottom: 14px;">
-          <label class="form-label" for="huntiq-url-input">HUNTIQ Ingest API Endpoint</label>
-          <input type="url" id="huntiq-url-input" class="text-input" value="http://localhost:3001/api/v1/integrations/lead-ingest" placeholder="http://localhost:3001/api/v1/integrations/lead-ingest" />
-          <small style="color: var(--text-faint); font-size: 11px; display: block; margin-top: 4px;">
-            Default local: <code>http://localhost:3001/api/v1/integrations/lead-ingest</code> &bull; Or your Vercel URL
-          </small>
-        </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
-          <div>
-            <label class="form-label" for="huntiq-workspace-input">Workspace ID</label>
-            <input type="text" id="huntiq-workspace-input" class="text-input" value="ws-default-001" placeholder="ws-default-001" />
+        <!-- Server-Managed Integration Status Panel -->
+        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted);">HUNTIQ Integration</span>
+            <span id="huntiq-status-badge" class="badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 11px; padding: 2px 8px; border-radius: 6px;">
+              Server-Managed
+            </span>
           </div>
-          <div>
-            <label class="form-label" for="huntiq-apikey-input">API Key (Optional)</label>
-            <input type="password" id="huntiq-apikey-input" class="text-input" placeholder="hnt_live_..." />
+          <div id="huntiq-status-detail" style="font-size: 12px; color: var(--text-faint); line-height: 1.4;">
+            Credentials and workspace routing are securely determined by server environment variables (<code>HUNTIQ_API_URL</code>, <code>HUNTIQ_API_KEY</code>).
           </div>
         </div>
 
-        <div style="margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px;">
-          <label class="switch-label">
-            <input type="checkbox" id="huntiq-draft-toggle" checked />
-            <span><strong>Create Outreach Draft</strong> in HUNTIQ inbox for user review</span>
-          </label>
+        <div style="margin-bottom: 16px;">
           <label class="switch-label">
             <input type="checkbox" id="huntiq-autosync-toggle" />
             <span><strong>Auto-sync new leads</strong> automatically when scrapes complete</span>

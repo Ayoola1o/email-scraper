@@ -95,6 +95,13 @@ export interface HuntIQConnectionTestResult {
   integration: 'huntiq';
   reachable: boolean;
   authenticated: boolean;
+  code?: string;
   message?: string;
   statusCode?: number;
+}
+
+export interface HuntIQErrorResponse {
+  success: false;
+  code: 'HUNTIQ_INTEGRATION_NOT_CONFIGURED' | 'INVALID_PAYLOAD' | 'AUTHENTICATION_FAILED' | 'TIMEOUT' | string;
+  message: string;
 }

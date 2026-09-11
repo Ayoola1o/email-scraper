@@ -17,22 +17,19 @@ export class HuntIQClient {
   }
 
   /**
-   * Builds headers with authentication and idempotency
+   * Builds request headers with server-side authentication and idempotency.
+   * Strictly avoids arbitrary client workspace headers.
    */
   private buildHeaders(idempotencyKey?: string): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': 'EmailScraper-HuntIQ-Connector/1.0'
+      'User-Agent': 'EmailScraper-HuntIQ-Discovery/1.0'
     };
 
     if (this.config.apiKey) {
       headers['Authorization'] = `Bearer ${this.config.apiKey}`;
       headers['x-huntiq-api-key'] = this.config.apiKey;
-    }
-
-    if (this.config.workspaceId) {
-      headers['x-workspace-id'] = this.config.workspaceId;
     }
 
     if (idempotencyKey) {
@@ -43,13 +40,24 @@ export class HuntIQClient {
   }
 
   /**
-   * Checks if an error is transient and eligible for retry
+   * Determines if an HTTP or network failure is transient and eligible for backoff retry
    */
   private isTransientError(statusCode?: number, err?: any): boolean {
     if (statusCode) {
-      // 5xx server errors and 429 Too Many Requests are eligible for retry
-      return statusCode >= 500 || statusCode === 429;
+      // Fast-fail: Never retry client or authentication errors
+      if (
+        statusCode === 400 ||
+        statusCode === 401 ||
+        statusCode === 403 ||
+        statusCode === 404 ||
+        statusCode === 422
+      ) {
+        return false;
+      }
+      // Retry transient server or rate limit codes: 408, 429, 500, 502, 503, 504
+      return statusCode === 408 || statusCode === 429 || statusCode >= 500;
     }
+
     // Network errors, timeouts, connection resets
     if (err) {
       const code = err.code || (err.cause && err.cause.code);
@@ -59,23 +67,26 @@ export class HuntIQClient {
         code === 'ECONNREFUSED' ||
         code === 'EAI_AGAIN' ||
         err.name === 'TimeoutError' ||
-        err.name === 'AbortError'
+        err.name === 'AbortError' ||
+        err.message?.includes('timeout') ||
+        err.message?.includes('aborted')
       );
     }
     return false;
   }
 
   /**
-   * Tests connection, reachability, and authentication with HUNTIQ
+   * Performs an authenticated health and connection verification test against HUNTIQ
    */
   async checkConnection(): Promise<HuntIQConnectionTestResult> {
-    if (!this.config.apiUrl) {
+    if (!HuntIQConfigManager.isConfigured()) {
       return {
         success: false,
         integration: 'huntiq',
         reachable: false,
         authenticated: false,
-        message: 'HUNTIQ_API_URL is not configured on server'
+        code: 'HUNTIQ_INTEGRATION_NOT_CONFIGURED',
+        message: 'HUNTIQ integration is not configured on this server.'
       };
     }
 
@@ -100,6 +111,7 @@ export class HuntIQClient {
           reachable: true,
           authenticated: false,
           statusCode: response.status,
+          code: 'AUTHENTICATION_FAILED',
           message: `Authentication rejected (HTTP ${response.status}). Verify HUNTIQ_API_KEY.`
         };
       }
@@ -127,11 +139,13 @@ export class HuntIQClient {
   }
 
   /**
-   * Synchronizes discovered contacts to HUNTIQ with idempotency and controlled retries
+   * Synchronizes discovered contact records into HUNTIQ with idempotency and controlled retries
    */
   async syncContacts(payload: HuntIQSyncPayload): Promise<HuntIQSyncResponse> {
-    if (!this.config.apiUrl) {
-      throw new Error('HUNTIQ_API_URL is not configured on server');
+    if (!HuntIQConfigManager.isConfigured()) {
+      const err = new Error('HUNTIQ integration is not configured on this server.');
+      (err as any).code = 'HUNTIQ_INTEGRATION_NOT_CONFIGURED';
+      throw err;
     }
 
     if (!payload.contacts || payload.contacts.length === 0) {
@@ -159,14 +173,18 @@ export class HuntIQClient {
 
         // Fast-fail: Do NOT retry on authentication or client validation errors
         if (response.status === 401 || response.status === 403) {
-          throw new Error(`HUNTIQ authentication failed (HTTP ${response.status}). Unauthorized.`);
+          const authErr = new Error(`HUNTIQ authentication failed (HTTP ${response.status}). Unauthorized.`);
+          (authErr as any).statusCode = response.status;
+          throw authErr;
         }
         if (response.status === 400 || response.status === 422) {
           const errText = await response.text();
-          throw new Error(`HUNTIQ rejected payload as invalid (HTTP ${response.status}): ${errText}`);
+          const valErr = new Error(`HUNTIQ rejected payload as invalid (HTTP ${response.status}): ${errText}`);
+          (valErr as any).statusCode = response.status;
+          throw valErr;
         }
 
-        // Retry transient server errors
+        // Retry transient server or rate limit codes
         if (this.isTransientError(response.status) && attempt < maxAttempts) {
           const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
           await new Promise(res => setTimeout(res, backoffMs));
@@ -185,7 +203,6 @@ export class HuntIQClient {
           throw new Error(`HUNTIQ server error (HTTP ${response.status}): ${data.message || responseText}`);
         }
 
-        // Parse ingestion results safely from HUNTIQ response
         const accepted = typeof data.accepted === 'number'
           ? data.accepted
           : typeof data.importedCount === 'number'
@@ -208,8 +225,17 @@ export class HuntIQClient {
       } catch (err: any) {
         lastError = err;
 
-        // If it's a client error (e.g. 401/400), don't retry
-        if (err.message && (err.message.includes('HTTP 401') || err.message.includes('HTTP 403') || err.message.includes('HTTP 400'))) {
+        // Fast-fail: Do NOT retry client/auth errors
+        if (
+          err.statusCode === 401 ||
+          err.statusCode === 403 ||
+          err.statusCode === 400 ||
+          err.statusCode === 422 ||
+          err.message?.includes('HTTP 401') ||
+          err.message?.includes('HTTP 403') ||
+          err.message?.includes('HTTP 400') ||
+          err.code === 'HUNTIQ_INTEGRATION_NOT_CONFIGURED'
+        ) {
           throw err;
         }
 
