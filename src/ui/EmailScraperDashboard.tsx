@@ -76,9 +76,11 @@ export interface AppNotification {
 // =============================================================================
 
 export const EmailScraperDashboard: React.FC = () => {
-  // Navigation & Drawer
-  const [activeNav, setActiveNav] = useState<NavSection>('scraper');
+  // Navigation & Responsive Drawer / Collapse
+  const [activeNav, setActiveNav] = useState<NavSection>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsedDesktop, setSidebarCollapsedDesktop] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() => typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
 
   // Scraper Form Inputs
   const [scrapeMode, setScrapeMode] = useState<ScrapeMode>('single');
@@ -156,6 +158,28 @@ export const EmailScraperDashboard: React.FC = () => {
   const getFormattedTime = () => {
     const d = new Date();
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+
+  // Track window resize for responsive layout
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setSidebarOpen(false);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleToggleSidebar = () => {
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(prev => !prev);
+    } else {
+      setSidebarCollapsedDesktop(prev => !prev);
+    }
   };
 
   // Test Server-Managed HUNTIQ Connection on Load
@@ -753,8 +777,8 @@ export const EmailScraperDashboard: React.FC = () => {
         <button onClick={() => setShowResultsModal(true)} style={styles.linkButton}>View all →</button>
       </div>
 
-      <div style={{ overflowX: 'auto', marginTop: '14px' }}>
-        <table style={styles.jobTable}>
+      <div className="responsive-table-scroll" style={{ overflowX: 'auto', marginTop: '14px', width: '100%' }}>
+        <table style={{ ...styles.jobTable, minWidth: '580px' }}>
           <thead>
             <tr style={styles.jobTableHead}>
               <th style={styles.jobTh}>Job Name</th>
@@ -823,7 +847,7 @@ export const EmailScraperDashboard: React.FC = () => {
         <h3 style={styles.cardTitle}>Quick Actions</h3>
       </div>
 
-      <div style={styles.quickActionsTileGrid}>
+      <div className="responsive-quick-actions" style={styles.quickActionsTileGrid}>
         <button onClick={() => setShowResultsModal(true)} style={styles.actionTile}>
           <div style={{ ...styles.actionIconPill, background: '#7C3AED' }}>✉</div>
           <div style={{ minWidth: 0 }}>
@@ -929,7 +953,7 @@ export const EmailScraperDashboard: React.FC = () => {
       {/* Top Greeting Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '26px', fontWeight: 700, color: '#FFFFFF', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h1 className="responsive-greeting-title" style={{ fontSize: '26px', fontWeight: 700, color: '#FFFFFF', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             Good morning, Alex 👋
           </h1>
           <p style={{ fontSize: '14px', color: '#8B92B0', margin: '6px 0 0 0' }}>
@@ -945,7 +969,7 @@ export const EmailScraperDashboard: React.FC = () => {
       </div>
 
       {/* 5 Top KPI Cards */}
-      <div style={styles.kpiRow5}>
+      <div className="responsive-kpi-row" style={styles.kpiRow5}>
         {/* Card 1: Total Emails Found */}
         <div style={styles.cardStat}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
@@ -1049,7 +1073,7 @@ export const EmailScraperDashboard: React.FC = () => {
       </div>
 
       {/* Dashboard 2-Column Grid */}
-      <div style={styles.layoutTwoCol}>
+      <div className="responsive-two-col" style={styles.layoutTwoCol}>
         {/* Left Column */}
         <div style={styles.leftCol}>
           {/* Quick Scrape Card */}
@@ -1105,7 +1129,7 @@ export const EmailScraperDashboard: React.FC = () => {
                     🧪 Load Demo Target
                   </button>
                 </div>
-                <div style={styles.urlInputBox}>
+                <div className="responsive-url-box" style={styles.urlInputBox}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B92B0" strokeWidth="2" style={{ marginLeft: '14px', flexShrink: 0 }}>
                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -1125,6 +1149,7 @@ export const EmailScraperDashboard: React.FC = () => {
                   <button
                     type="submit"
                     disabled={isScraping}
+                    className="responsive-url-submit"
                     style={styles.primaryActionButton}
                   >
                     <span>▶</span>
@@ -1134,7 +1159,7 @@ export const EmailScraperDashboard: React.FC = () => {
               </div>
 
               {/* 4 Parameter Option Cards */}
-              <div style={styles.paramGrid4}>
+              <div className="responsive-param-grid" style={styles.paramGrid4}>
                 <div style={styles.paramBox}>
                   <div style={styles.paramIconSquare}>⏱️</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1430,11 +1455,11 @@ export const EmailScraperDashboard: React.FC = () => {
 
   // SCRAPER VIEW (from Email Scraper Scraper page.png)
   const renderScraperView = () => (
-    <div style={styles.layoutTwoCol}>
+    <div className="responsive-two-col" style={styles.layoutTwoCol}>
       {/* LEFT MAIN COLUMN (~68% width) */}
       <div style={styles.leftCol}>
         {/* HERO BANNER: Start a New Scrape */}
-        <div style={styles.heroScrapeCard}>
+        <div className="responsive-hero-card" style={styles.heroScrapeCard}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', zIndex: 2, position: 'relative' }}>
             <div style={styles.heroLightningIcon}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="#FFFFFF">
@@ -1450,7 +1475,7 @@ export const EmailScraperDashboard: React.FC = () => {
           </div>
 
           {/* Cosmic Glow Illustration + Right Promo Copy */}
-          <div style={styles.heroRightPromo}>
+          <div className="responsive-hero-promo" style={styles.heroRightPromo}>
             <div style={styles.cosmicGlowSphere} />
             <div style={{ zIndex: 2, position: 'relative', textAlign: 'right', maxWidth: '280px' }}>
               <div style={styles.heroPromoH3}>Turn websites into valuable contacts</div>
@@ -1524,7 +1549,7 @@ export const EmailScraperDashboard: React.FC = () => {
                   🧪 Load Demo Target
                 </button>
               </div>
-              <div style={styles.urlInputBox}>
+              <div className="responsive-url-box" style={styles.urlInputBox}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B92B0" strokeWidth="2" style={{ marginLeft: '14px', flexShrink: 0 }}>
                   <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                   <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -1544,6 +1569,7 @@ export const EmailScraperDashboard: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isScraping}
+                  className="responsive-url-submit"
                   style={styles.primaryActionButton}
                 >
                   <span>▶</span>
@@ -1553,7 +1579,7 @@ export const EmailScraperDashboard: React.FC = () => {
             </div>
 
             {/* 4 Parameter Option Cards */}
-            <div style={styles.paramGrid4}>
+            <div className="responsive-param-grid" style={styles.paramGrid4}>
               <div style={styles.paramBox}>
                 <div style={styles.paramIconSquare}>⏱️</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1639,7 +1665,7 @@ export const EmailScraperDashboard: React.FC = () => {
               </button>
 
               {advancedOpen && (
-                <div style={styles.advancedCardsRow}>
+                <div className="responsive-adv-row" style={styles.advancedCardsRow}>
                   <div style={styles.advMiniCard}>
                     <div style={styles.advIconBox}>⏱️</div>
                     <div>
@@ -1828,23 +1854,207 @@ export const EmailScraperDashboard: React.FC = () => {
 
   return (
     <div style={styles.appContainer}>
+      {/* Responsive Layout CSS Stylesheet */}
+      <style>{`
+        @media (max-width: 1200px) {
+          .responsive-kpi-row {
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 12px !important;
+          }
+        }
+        @media (max-width: 1024px) {
+          .responsive-two-col {
+            grid-template-columns: 1fr !important;
+            gap: 16px !important;
+          }
+          .responsive-param-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+          }
+        }
+        @media (max-width: 768px) {
+          .responsive-main-canvas {
+            padding: 14px 10px !important;
+          }
+          .responsive-header {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+            margin-bottom: 16px !important;
+          }
+          .responsive-search-box {
+            width: 100% !important;
+            max-width: 100% !important;
+            order: 3 !important;
+            margin-top: 4px !important;
+          }
+          .mobile-brand-pill {
+            display: flex !important;
+          }
+          .responsive-kpi-row {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+          }
+          .responsive-greeting-title {
+            font-size: 20px !important;
+          }
+          .responsive-hero-card {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 14px !important;
+            padding: 16px 14px !important;
+          }
+          .responsive-hero-promo {
+            text-align: left !important;
+            max-width: 100% !important;
+            margin-top: 10px !important;
+          }
+        }
+        @media (min-width: 769px) {
+          .mobile-brand-pill {
+            display: none !important;
+          }
+        }
+        @media (max-width: 580px) {
+          .responsive-kpi-row {
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+          }
+          .responsive-param-grid {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+          .responsive-url-box {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            height: auto !important;
+            padding: 8px !important;
+            gap: 8px !important;
+          }
+          .responsive-url-submit {
+            width: 100% !important;
+            min-height: 44px !important;
+            justify-content: center !important;
+          }
+          .responsive-quick-actions {
+            grid-template-columns: 1fr !important;
+          }
+          .responsive-adv-row {
+            grid-template-columns: 1fr !important;
+          }
+          .responsive-modal-large, .responsive-modal-small {
+            width: 95vw !important;
+            max-width: 95vw !important;
+            max-height: 90vh !important;
+            padding: 16px 12px !important;
+            margin: 10px auto !important;
+            border-radius: 12px !important;
+          }
+        }
+        .responsive-table-scroll {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          width: 100%;
+          border-radius: 8px;
+        }
+        .responsive-table-scroll::-webkit-scrollbar {
+          height: 6px;
+        }
+        .responsive-table-scroll::-webkit-scrollbar-track {
+          background: #0B0E1A;
+        }
+        .responsive-table-scroll::-webkit-scrollbar-thumb {
+          background: rgba(91, 95, 239, 0.4);
+          border-radius: 4px;
+        }
+      `}</style>
+
+      {/* Mobile Backdrop Overlay */}
+      {isMobile && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 90,
+            transition: 'opacity 0.25s ease'
+          }}
+          aria-label="Close menu overlay"
+        />
+      )}
+
       {/* ------------------------------------------------------------------- */}
-      {/* 1. LEFT SIDEBAR NAVIGATION                                          */}
+      {/* 1. LEFT SIDEBAR NAVIGATION (Collapsible on desktop, Drawer on mobile) */}
       {/* ------------------------------------------------------------------- */}
-      <aside style={{ ...styles.sidebar, ...(sidebarOpen ? styles.sidebarMobileOpen : {}) }}>
-        <div>
+      <aside
+        style={{
+          ...styles.sidebar,
+          ...(isMobile
+            ? {
+                position: 'fixed',
+                top: 0,
+                bottom: 0,
+                left: 0,
+                zIndex: 100,
+                width: '260px',
+                boxShadow: '4px 0 28px rgba(0, 0, 0, 0.85)',
+                transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+                transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+              }
+            : {
+                width: sidebarCollapsedDesktop ? 0 : '240px',
+                padding: sidebarCollapsedDesktop ? 0 : '24px 16px',
+                overflow: sidebarCollapsedDesktop ? 'hidden' : 'visible',
+                borderRight: sidebarCollapsedDesktop ? 'none' : '1px solid rgba(255, 255, 255, 0.06)',
+                opacity: sidebarCollapsedDesktop ? 0 : 1,
+                transition: 'width 0.25s cubic-bezier(0.16, 1, 0.3, 1), padding 0.25s ease, opacity 0.2s ease'
+              })
+        }}
+      >
+        <div style={{ minWidth: '208px' }}>
           {/* Logo Block */}
           <div style={styles.brandRow}>
-            <div style={styles.brandLogoBox}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                <polyline points="22,6 12,13 2,6" />
-              </svg>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={styles.brandLogoBox}>
+                <img
+                  src="/logo.jpg"
+                  alt="Email Scraper Logo"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+              </div>
+              <div>
+                <div style={styles.brandTitle}>Email Scraper</div>
+                <div style={styles.brandTagline}>Find • Verify • Grow</div>
+              </div>
             </div>
-            <div>
-              <div style={styles.brandTitle}>Email Scraper</div>
-              <div style={styles.brandTagline}>Find • Verify • Grow</div>
-            </div>
+
+            {/* Close button on mobile drawer / Collapse button on desktop */}
+            {isMobile ? (
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                style={styles.drawerCloseBtn}
+                aria-label="Close navigation menu"
+                title="Close menu"
+              >
+                ✕
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsedDesktop(true)}
+                style={styles.sidebarCollapseBtn}
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="11 17 6 12 11 7" />
+                  <polyline points="18 17 13 12 18 7" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Navigation items as rounded pills */}
@@ -1924,7 +2134,7 @@ export const EmailScraperDashboard: React.FC = () => {
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
               <span>Settings</span>
             </button>
@@ -1945,20 +2155,51 @@ export const EmailScraperDashboard: React.FC = () => {
       {/* ------------------------------------------------------------------- */}
       {/* 2. MAIN VIEW CONTAINER                                              */}
       {/* ------------------------------------------------------------------- */}
-      <div style={styles.mainCanvas}>
+      <div className="responsive-main-canvas" style={styles.mainCanvas}>
         {/* Top Header Bar */}
-        <header style={styles.topHeader}>
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            style={styles.mobileMenuBtn}
-            aria-label="Toggle navigation"
-          >
-            ☰
-          </button>
+        <header className="responsive-header" style={styles.topHeader}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Hamburger button active on BOTH desktop and mobile */}
+            <button
+              type="button"
+              onClick={handleToggleSidebar}
+              style={{
+                ...styles.hamburgerBtn,
+                backgroundColor: (!isMobile && sidebarCollapsedDesktop) || (isMobile && sidebarOpen) ? '#5B5FEF' : '#141833',
+                borderColor: (!isMobile && sidebarCollapsedDesktop) || (isMobile && sidebarOpen) ? '#5B5FEF' : 'rgba(255, 255, 255, 0.08)'
+              }}
+              aria-label="Toggle navigation menu"
+              title={
+                isMobile
+                  ? (sidebarOpen ? 'Close navigation drawer' : 'Open navigation drawer')
+                  : (sidebarCollapsedDesktop ? 'Expand sidebar' : 'Collapse sidebar')
+              }
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
 
-          {/* Search bar */}
-          <div style={styles.searchBox}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B92B0" strokeWidth="2" style={{ marginLeft: '14px' }}>
+            {/* Brand indicator (Visible on Mobile OR when Desktop sidebar is collapsed) */}
+            {(isMobile || sidebarCollapsedDesktop) && (
+              <div className="mobile-brand-pill" style={styles.mobileBrandIndicator}>
+                <div style={styles.mobileBrandIcon}>
+                  <img
+                    src="/logo.jpg"
+                    alt="Email Scraper Logo"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                </div>
+                <span style={styles.mobileBrandText}>Email Scraper</span>
+              </div>
+            )}
+          </div>
+
+          {/* Search bar with responsive wrap */}
+          <div className="responsive-search-box" style={styles.searchBox}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B92B0" strokeWidth="2" style={{ marginLeft: '14px', flexShrink: 0 }}>
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
@@ -2035,7 +2276,7 @@ export const EmailScraperDashboard: React.FC = () => {
       {/* Results Modal */}
       {showResultsModal && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalCardLarge}>
+          <div className="responsive-modal-large" style={styles.modalCardLarge}>
             <div style={styles.modalHeader}>
               <div>
                 <h3 style={styles.modalTitle}>Discovered Leads ({filteredRecords.length})</h3>
@@ -2108,8 +2349,8 @@ export const EmailScraperDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto', maxHeight: '52vh', marginTop: '14px' }}>
-              <table style={styles.jobTable}>
+            <div className="responsive-table-scroll" style={{ overflowX: 'auto', maxHeight: '52vh', marginTop: '14px' }}>
+              <table style={{ ...styles.jobTable, minWidth: '640px' }}>
                 <thead>
                   <tr style={styles.jobTableHead}>
                     <th style={styles.jobTh}>
@@ -2209,7 +2450,7 @@ export const EmailScraperDashboard: React.FC = () => {
       {/* Export Modal */}
       {showExportModal && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalCardSmall}>
+          <div className="responsive-modal-small" style={styles.modalCardSmall}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>Export Discovered Leads</h3>
               <button onClick={() => setShowExportModal(false)} style={styles.modalCloseBtn}>✕</button>
@@ -2257,7 +2498,7 @@ export const EmailScraperDashboard: React.FC = () => {
       {/* Raw Text Modal */}
       {showTextModal && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalCardSmall}>
+          <div className="responsive-modal-small" style={styles.modalCardSmall}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>Extract from Raw Text / Snippet</h3>
               <button onClick={() => setShowTextModal(false)} style={styles.modalCloseBtn}>✕</button>
@@ -2290,7 +2531,7 @@ export const EmailScraperDashboard: React.FC = () => {
       {/* HUNTIQ CRM Modal */}
       {showHuntiqModal && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalCardSmall}>
+          <div className="responsive-modal-small" style={styles.modalCardSmall}>
             <div style={styles.modalHeader}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={styles.huntiqSquareBadge}>H</div>
@@ -2341,7 +2582,7 @@ export const EmailScraperDashboard: React.FC = () => {
       {/* Settings Modal */}
       {showSettingsModal && (
         <div style={styles.modalOverlay}>
-          <div style={styles.modalCardSmall}>
+          <div className="responsive-modal-small" style={styles.modalCardSmall}>
             <div style={styles.modalHeader}>
               <h3 style={styles.modalTitle}>System Settings & Security</h3>
               <button onClick={() => setShowSettingsModal(false)} style={styles.modalCloseBtn}>✕</button>
@@ -2435,19 +2676,76 @@ const styles: Record<string, React.CSSProperties> = {
   brandRow: {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: '12px',
-    padding: '0 6px',
+    padding: '0 4px',
     marginBottom: '28px'
+  },
+  drawerCloseBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '32px',
+    height: '32px',
+    borderRadius: '8px',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    border: 'none',
+    color: '#FFFFFF',
+    fontSize: '15px',
+    cursor: 'pointer',
+    flexShrink: 0
+  },
+  sidebarCollapseBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '28px',
+    height: '28px',
+    borderRadius: '6px',
+    backgroundColor: 'transparent',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    color: '#8B92B0',
+    cursor: 'pointer',
+    flexShrink: 0,
+    transition: 'all 0.15s ease'
+  },
+  mobileBrandIndicator: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '15px',
+    fontWeight: 700,
+    color: '#FFFFFF'
+  },
+  mobileBrandIcon: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '8px',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 2px 8px rgba(91, 95, 239, 0.4)',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    flexShrink: 0
+  },
+  mobileBrandText: {
+    fontSize: '15px',
+    fontWeight: 700,
+    color: '#FFFFFF',
+    letterSpacing: '-0.01em'
   },
   brandLogoBox: {
     width: '36px',
     height: '36px',
     borderRadius: '10px',
-    background: 'linear-gradient(135deg, #5B5FEF 0%, #7C3AED 100%)',
+    overflow: 'hidden',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 4px 14px rgba(91, 95, 239, 0.4)'
+    boxShadow: '0 4px 14px rgba(91, 95, 239, 0.4)',
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    flexShrink: 0
   },
   brandTitle: {
     fontSize: '16px',
@@ -2540,6 +2838,20 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     marginBottom: '20px',
     gap: '12px'
+  },
+  hamburgerBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '38px',
+    height: '38px',
+    borderRadius: '8px',
+    backgroundColor: '#141833',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    color: '#FFFFFF',
+    cursor: 'pointer',
+    flexShrink: 0,
+    transition: 'background-color 0.15s, border-color 0.15s'
   },
   mobileMenuBtn: {
     display: 'none',
