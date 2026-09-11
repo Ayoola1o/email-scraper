@@ -123,6 +123,17 @@ export const EmailScraperDashboard: React.FC = () => {
     message: 'Testing connection...'
   });
 
+  // HUNTIQ API Connection Configuration State
+  const [huntiqApiUrl, setHuntiqApiUrl] = useState('https://huntiq.example.com');
+  const [huntiqApiKey, setHuntiqApiKey] = useState('');
+  const [huntiqEnabled, setHuntiqEnabled] = useState(true);
+  const [huntiqTimeoutMs, setHuntiqTimeoutMs] = useState('30000');
+  const [huntiqMaxRetries, setHuntiqMaxRetries] = useState('3');
+  const [showApiKeyPlain, setShowApiKeyPlain] = useState(false);
+  const [isSavingHuntiqConfig, setIsSavingHuntiqConfig] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'huntiq' | 'security'>('huntiq');
+  const [huntiqModalTab, setHuntiqModalTab] = useState<'config' | 'sync'>('config');
+
   // Modals & Panels
   const [showHuntiqModal, setShowHuntiqModal] = useState(false);
   const [showResultsModal, setShowResultsModal] = useState(false);
@@ -182,10 +193,60 @@ export const EmailScraperDashboard: React.FC = () => {
     }
   };
 
-  // Test Server-Managed HUNTIQ Connection on Load
+  // Load HUNTIQ Config and test connection on load
   useEffect(() => {
+    loadHuntiqConfig();
     testHuntiqConnection(true);
   }, []);
+
+  const loadHuntiqConfig = async () => {
+    try {
+      const res = await fetch('/api/integrations/huntiq/config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.apiUrl) setHuntiqApiUrl(data.apiUrl);
+        if (data.apiKey) setHuntiqApiKey(data.apiKey);
+        if (data.enabled !== undefined) setHuntiqEnabled(data.enabled);
+        if (data.timeoutMs) setHuntiqTimeoutMs(String(data.timeoutMs));
+        if (data.maxRetries) setHuntiqMaxRetries(String(data.maxRetries));
+        if (data.isConfigured !== undefined) {
+          setHuntiqStatus(prev => ({ ...prev, configured: data.isConfigured }));
+        }
+      }
+    } catch {
+      // Ignore network errors on init
+    }
+  };
+
+  const handleSaveHuntiqConfig = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingHuntiqConfig(true);
+    try {
+      const res = await fetch('/api/integrations/huntiq/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiUrl: huntiqApiUrl,
+          apiKey: huntiqApiKey,
+          enabled: huntiqEnabled,
+          timeoutMs: parseInt(huntiqTimeoutMs, 10) || 30000,
+          maxRetries: parseInt(huntiqMaxRetries, 10) || 3
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to save configuration');
+      }
+      showToast('HUNTIQ API configuration saved & applied!', 'success');
+      setHuntiqStatus(prev => ({ ...prev, configured: data.isConfigured }));
+      // Run connection test with newly saved config
+      await testHuntiqConnection(false);
+    } catch (err: any) {
+      showToast(`Save error: ${err.message}`, 'error');
+    } finally {
+      setIsSavingHuntiqConfig(false);
+    }
+  };
 
   const testHuntiqConnection = async (silent = false) => {
     try {
@@ -945,6 +1006,166 @@ export const EmailScraperDashboard: React.FC = () => {
         </div>
       )}
     </div>
+  );
+
+  const renderHuntiqConfigForm = () => (
+    <form onSubmit={handleSaveHuntiqConfig} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* 1. HUNTIQ_API_URL */}
+      <div>
+        <label style={styles.formFieldLabel}>
+          <span>HUNTIQ_API_URL</span>
+          <span style={{ color: '#5B5FEF', fontSize: '11px', fontWeight: 600 }}>Endpoint</span>
+        </label>
+        <div style={styles.configInputWrap}>
+          <span style={styles.configFieldIcon}>🌐</span>
+          <input
+            type="url"
+            required
+            value={huntiqApiUrl}
+            onChange={e => setHuntiqApiUrl(e.target.value)}
+            placeholder="https://huntiq.example.com"
+            style={styles.configInput}
+          />
+        </div>
+        <div style={styles.formFieldHelp}>
+          Base URL for your HUNTIQ CRM instance (e.g. https://huntiq.example.com or lead-ingest endpoint)
+        </div>
+      </div>
+
+      {/* 2. HUNTIQ_API_KEY */}
+      <div>
+        <label style={styles.formFieldLabel}>
+          <span>HUNTIQ_API_KEY</span>
+          <span style={{ color: '#5B5FEF', fontSize: '11px', fontWeight: 600 }}>Secret Token</span>
+        </label>
+        <div style={styles.configInputWrap}>
+          <span style={styles.configFieldIcon}>🔑</span>
+          <input
+            type={showApiKeyPlain ? 'text' : 'password'}
+            required
+            value={huntiqApiKey}
+            onChange={e => setHuntiqApiKey(e.target.value)}
+            placeholder="Enter secret key (e.g. hnt_live_...)"
+            style={styles.configInput}
+          />
+          <button
+            type="button"
+            onClick={() => setShowApiKeyPlain(!showApiKeyPlain)}
+            style={styles.configToggleVisibilityBtn}
+            title={showApiKeyPlain ? "Hide API key" : "Show API key"}
+          >
+            {showApiKeyPlain ? '🙈' : '👁️'}
+          </button>
+        </div>
+        <div style={styles.formFieldHelp}>
+          Secret authentication token transmitted securely via Authorization: Bearer header.
+        </div>
+      </div>
+
+      {/* 3. HUNTIQ_INTEGRATION_ENABLED */}
+      <div style={styles.configToggleRow}>
+        <div>
+          <div style={{ ...styles.formFieldLabel, marginBottom: '2px' }}>HUNTIQ_INTEGRATION_ENABLED</div>
+          <div style={styles.formFieldHelp}>Enable integration pipeline to push verified leads into CRM</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '12px', color: huntiqEnabled ? '#10B981' : '#8B92B0', fontWeight: 600 }}>
+            {huntiqEnabled ? 'Active (true)' : 'Disabled (false)'}
+          </span>
+          <label style={styles.switchBox}>
+            <input
+              type="checkbox"
+              checked={huntiqEnabled}
+              onChange={e => setHuntiqEnabled(e.target.checked)}
+              style={{ display: 'none' }}
+            />
+            <span style={{ ...styles.switchTrack, ...(huntiqEnabled ? styles.switchTrackOn : {}) }}>
+              <span style={{ ...styles.switchKnob, ...(huntiqEnabled ? styles.switchKnobOn : {}) }} />
+            </span>
+          </label>
+        </div>
+      </div>
+
+      {/* 4 & 5: HUNTIQ_TIMEOUT_MS & HUNTIQ_MAX_RETRIES */}
+      <div className="responsive-adv-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+        <div>
+          <label style={styles.formFieldLabel}>
+            <span>HUNTIQ_TIMEOUT_MS</span>
+            <span style={{ color: '#8B92B0', fontSize: '11px' }}>Milliseconds</span>
+          </label>
+          <div style={styles.configInputWrap}>
+            <span style={styles.configFieldIcon}>⏱️</span>
+            <input
+              type="number"
+              min="1000"
+              step="1000"
+              value={huntiqTimeoutMs}
+              onChange={e => setHuntiqTimeoutMs(e.target.value)}
+              placeholder="30000"
+              style={styles.configInput}
+            />
+          </div>
+          <div style={styles.formFieldHelp}>Default: 30000 ms</div>
+        </div>
+
+        <div>
+          <label style={styles.formFieldLabel}>
+            <span>HUNTIQ_MAX_RETRIES</span>
+            <span style={{ color: '#8B92B0', fontSize: '11px' }}>Backoff Retries</span>
+          </label>
+          <div style={styles.configInputWrap}>
+            <span style={styles.configFieldIcon}>🔄</span>
+            <input
+              type="number"
+              min="0"
+              max="10"
+              value={huntiqMaxRetries}
+              onChange={e => setHuntiqMaxRetries(e.target.value)}
+              placeholder="3"
+              style={styles.configInput}
+            />
+          </div>
+          <div style={styles.formFieldHelp}>Default: 3 attempts on 5xx</div>
+        </div>
+      </div>
+
+      {/* Live Status Row */}
+      <div style={styles.configStatusBanner}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: huntiqStatus.connected ? '#10B981' : '#F59E0B'
+          }} />
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>
+            {huntiqStatus.connected ? 'Connected & Authenticated' : (huntiqStatus.configured ? 'Configured (Standby)' : 'Not Configured')}
+          </span>
+        </div>
+        <div style={{ fontSize: '11px', color: '#8B92B0' }}>
+          {huntiqStatus.recordsSynced.toLocaleString()} leads synced
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={styles.configActionRow}>
+        <button
+          type="button"
+          onClick={() => testHuntiqConnection(false)}
+          style={styles.btnActionSecondary}
+        >
+          <span>Test Connection</span>
+          <span>🔗</span>
+        </button>
+        <button
+          type="submit"
+          disabled={isSavingHuntiqConfig}
+          style={styles.primaryActionButton}
+        >
+          <span>{isSavingHuntiqConfig ? 'Saving...' : '💾 Save Configuration'}</span>
+        </button>
+      </div>
+    </form>
   );
 
   // DASHBOARD VIEW (from email scrapper Dashboard.png)
@@ -2540,41 +2761,67 @@ export const EmailScraperDashboard: React.FC = () => {
               <button onClick={() => setShowHuntiqModal(false)} style={styles.modalCloseBtn}>✕</button>
             </div>
 
-            <div style={{ padding: '14px', backgroundColor: '#0B0E1A', borderRadius: '10px', marginBottom: '16px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ fontSize: '13px', color: '#8B92B0' }}>Status:</span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: huntiqStatus.connected ? '#10B981' : '#F59E0B' }}>
-                  {huntiqStatus.connected ? 'Connected & Authenticated' : (huntiqStatus.configured ? 'Configured (Standby)' : 'Not Configured')}
-                </span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ fontSize: '13px', color: '#8B92B0' }}>Server Endpoint:</span>
-                <span style={{ fontSize: '13px', color: '#FFFFFF', fontFamily: 'monospace' }}>Environment Managed</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '13px', color: '#8B92B0' }}>Total Contacts Synced:</span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>
-                  {huntiqStatus.recordsSynced.toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            <p style={{ fontSize: '12px', color: '#8B92B0', marginBottom: '16px', lineHeight: 1.4 }}>
-              API credentials are locked down on the server. Browser client never handles raw API keys or webhook secrets.
-            </p>
-
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button onClick={() => testHuntiqConnection(false)} style={styles.cancelBtn}>
-                Test Connection
+            {/* Modal Tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', marginBottom: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setHuntiqModalTab('config')}
+                style={{ ...styles.tabButton, ...(huntiqModalTab === 'config' ? styles.tabButtonActive : {}) }}
+              >
+                ⚙️ API Configuration
               </button>
               <button
-                onClick={handleSyncToHuntiq}
-                disabled={isSyncingHuntiq || records.length === 0}
-                style={styles.primaryActionButton}
+                type="button"
+                onClick={() => setHuntiqModalTab('sync')}
+                style={{ ...styles.tabButton, ...(huntiqModalTab === 'sync' ? styles.tabButtonActive : {}) }}
               >
-                {isSyncingHuntiq ? 'Syncing...' : `Push ${records.length} Leads to CRM`}
+                🔄 Push Leads ({records.length})
               </button>
             </div>
+
+            {huntiqModalTab === 'config' ? (
+              renderHuntiqConfigForm()
+            ) : (
+              <div>
+                <div style={{ padding: '14px', backgroundColor: '#0B0E1A', borderRadius: '10px', marginBottom: '16px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', color: '#8B92B0' }}>Status:</span>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: huntiqStatus.connected ? '#10B981' : '#F59E0B' }}>
+                      {huntiqStatus.connected ? 'Connected & Authenticated' : (huntiqStatus.configured ? 'Configured (Standby)' : 'Not Configured')}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', color: '#8B92B0' }}>Server Endpoint:</span>
+                    <span style={{ fontSize: '13px', color: '#FFFFFF', fontFamily: 'monospace' }}>
+                      {huntiqApiUrl || 'Environment Managed'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '13px', color: '#8B92B0' }}>Total Contacts Synced:</span>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>
+                      {huntiqStatus.recordsSynced.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: '12px', color: '#8B92B0', marginBottom: '16px', lineHeight: 1.4 }}>
+                  API credentials are authenticated securely by the backend server. Discovered contacts are mapped and pushed directly to HUNTIQ CRM.
+                </p>
+
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button onClick={() => testHuntiqConnection(false)} style={styles.cancelBtn}>
+                    Test Connection
+                  </button>
+                  <button
+                    onClick={handleSyncToHuntiq}
+                    disabled={isSyncingHuntiq || records.length === 0}
+                    style={styles.primaryActionButton}
+                  >
+                    {isSyncingHuntiq ? 'Syncing...' : `Push ${records.length} Leads to CRM`}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2584,41 +2831,76 @@ export const EmailScraperDashboard: React.FC = () => {
         <div style={styles.modalOverlay}>
           <div className="responsive-modal-small" style={styles.modalCardSmall}>
             <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>System Settings & Security</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>⚙️</span>
+                <h3 style={styles.modalTitle}>Settings & Configurations</h3>
+              </div>
               <button onClick={() => setShowSettingsModal(false)} style={styles.modalCloseBtn}>✕</button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-              <div style={styles.settingsRow}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>SSRF Protection</div>
-                  <div style={{ fontSize: '11px', color: '#8B92B0' }}>Blocks private IP subnets and loopbacks</div>
-                </div>
-                <span style={{ color: '#10B981', fontWeight: 600, fontSize: '12px' }}>Active</span>
-              </div>
-
-              <div style={styles.settingsRow}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>Streaming Body Timeout</div>
-                  <div style={{ fontSize: '11px', color: '#8B92B0' }}>Guards against stalled network connections</div>
-                </div>
-                <span style={{ color: '#10B981', fontWeight: 600, fontSize: '12px' }}>12,000 ms</span>
-              </div>
-
-              <div style={styles.settingsRow}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>Response Size Cap</div>
-                  <div style={{ fontSize: '11px', color: '#8B92B0' }}>Prevents denial-of-service memory exhaustion</div>
-                </div>
-                <span style={{ color: '#10B981', fontWeight: 600, fontSize: '12px' }}>10 MB Max</span>
-              </div>
-            </div>
-
-            <div style={styles.modalFooter}>
-              <button onClick={() => setShowSettingsModal(false)} style={styles.primaryActionButton}>
-                Close
+            {/* Settings Tab Navigation */}
+            <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', marginBottom: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setSettingsTab('huntiq')}
+                style={{ ...styles.tabButton, ...(settingsTab === 'huntiq' ? styles.tabButtonActive : {}) }}
+              >
+                🔗 HUNTIQ API Connection
+              </button>
+              <button
+                type="button"
+                onClick={() => setSettingsTab('security')}
+                style={{ ...styles.tabButton, ...(settingsTab === 'security' ? styles.tabButtonActive : {}) }}
+              >
+                🛡️ Scraper Engine Security
               </button>
             </div>
+
+            {settingsTab === 'huntiq' ? (
+              renderHuntiqConfigForm()
+            ) : (
+              <div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                  <div style={styles.settingsRow}>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>SSRF Protection</div>
+                      <div style={{ fontSize: '11px', color: '#8B92B0' }}>Blocks private IP subnets, loopbacks, and cloud metadata</div>
+                    </div>
+                    <span style={{ color: '#10B981', fontWeight: 600, fontSize: '12px' }}>Active (Strict)</span>
+                  </div>
+
+                  <div style={styles.settingsRow}>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>Streaming Body Timeout</div>
+                      <div style={{ fontSize: '11px', color: '#8B92B0' }}>Guards against stalled network sockets & slowloris attacks</div>
+                    </div>
+                    <span style={{ color: '#10B981', fontWeight: 600, fontSize: '12px' }}>12,000 ms</span>
+                  </div>
+
+                  <div style={styles.settingsRow}>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>Response Size Cap</div>
+                      <div style={{ fontSize: '11px', color: '#8B92B0' }}>Prevents denial-of-service memory exhaustion</div>
+                    </div>
+                    <span style={{ color: '#10B981', fontWeight: 600, fontSize: '12px' }}>10 MB Max</span>
+                  </div>
+
+                  <div style={styles.settingsRow}>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>Max Concurrency</div>
+                      <div style={{ fontSize: '11px', color: '#8B92B0' }}>Parallel asynchronous scraping worker limit</div>
+                    </div>
+                    <span style={{ color: '#5B5FEF', fontWeight: 600, fontSize: '12px' }}>5 Workers</span>
+                  </div>
+                </div>
+
+                <div style={styles.modalFooter}>
+                  <button onClick={() => setShowSettingsModal(false)} style={styles.primaryActionButton}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3822,5 +4104,99 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px'
+  },
+  formFieldLabel: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#FFFFFF',
+    marginBottom: '6px'
+  },
+  configInputWrap: {
+    position: 'relative' as const,
+    display: 'flex',
+    alignItems: 'center',
+    width: '100%'
+  },
+  configFieldIcon: {
+    position: 'absolute' as const,
+    left: '12px',
+    fontSize: '14px',
+    pointerEvents: 'none' as const,
+    zIndex: 1
+  },
+  configInput: {
+    width: '100%',
+    padding: '10px 14px 10px 38px',
+    backgroundColor: '#0B0E1A',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '8px',
+    color: '#FFFFFF',
+    fontSize: '13px',
+    fontFamily: 'Inter, monospace, sans-serif',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
+    transition: 'border-color 0.2s ease'
+  },
+  configToggleVisibilityBtn: {
+    position: 'absolute' as const,
+    right: '10px',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '14px',
+    padding: '4px',
+    color: '#8B92B0'
+  },
+  formFieldHelp: {
+    fontSize: '11px',
+    color: '#8B92B0',
+    marginTop: '4px',
+    lineHeight: 1.3
+  },
+  configToggleRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px 14px',
+    backgroundColor: '#0B0E1A',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.08)'
+  },
+  configStatusBanner: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '10px 14px',
+    backgroundColor: 'rgba(91, 95, 239, 0.08)',
+    borderRadius: '8px',
+    border: '1px solid rgba(91, 95, 239, 0.25)',
+    marginTop: '4px'
+  },
+  configActionRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '10px',
+    marginTop: '6px'
+  },
+  tabButton: {
+    flex: 1,
+    padding: '8px 12px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    color: '#8B92B0',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease'
+  },
+  tabButtonActive: {
+    color: '#FFFFFF',
+    borderBottom: '2px solid #5B5FEF',
+    fontWeight: 600
   }
 };

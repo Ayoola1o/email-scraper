@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { randomUUID } from 'crypto';
 import {
   scrapeEmailRecordsFromUrl,
@@ -408,8 +409,102 @@ app.post('/api/export', (req: Request, res: Response) => {
 /* ========================================================================= */
 
 /**
- * Connection & health check for configured HUNTIQ integration
+ * Helper to persist HUNTIQ settings to .env file
  */
+function persistEnvSettings(settings: Record<string, string | undefined>) {
+  try {
+    const envPath = path.resolve(__dirname, '../../.env');
+    let content = '';
+    if (fs.existsSync(envPath)) {
+      content = fs.readFileSync(envPath, 'utf8');
+    } else {
+      const examplePath = path.resolve(__dirname, '../../.env.example');
+      if (fs.existsSync(examplePath)) {
+        content = fs.readFileSync(examplePath, 'utf8');
+      }
+    }
+
+    for (const [key, value] of Object.entries(settings)) {
+      if (value === undefined) continue;
+      const regex = new RegExp(`^${key}=.*$`, 'm');
+      if (regex.test(content)) {
+        content = content.replace(regex, `${key}=${value}`);
+      } else {
+        content += `\n${key}=${value}`;
+      }
+    }
+
+    fs.writeFileSync(envPath, content.trim() + '\n', 'utf8');
+  } catch (err) {
+    // Non-fatal if filesystem is read-only (e.g. serverless)
+  }
+}
+
+/**
+ * GET /api/integrations/huntiq/config
+ * Retrieves current server-managed HUNTIQ configuration
+ */
+app.get('/api/integrations/huntiq/config', (req: Request, res: Response) => {
+  try {
+    const config = HuntIQConfigManager.getConfig();
+    const isConfigured = HuntIQConfigManager.isConfigured();
+    return res.json({
+      success: true,
+      apiUrl: config.apiUrl || 'https://huntiq.example.com',
+      apiKey: config.apiKey ? '••••••••' + (config.apiKey.length > 4 ? config.apiKey.slice(-4) : '') : '',
+      hasApiKey: Boolean(config.apiKey),
+      enabled: config.enabled,
+      timeoutMs: config.timeoutMs || 30000,
+      maxRetries: config.maxRetries || 3,
+      isConfigured
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * POST /api/integrations/huntiq/config
+ * Updates server-side HUNTIQ credentials and configuration
+ */
+app.post('/api/integrations/huntiq/config', (req: Request, res: Response) => {
+  try {
+    const { apiUrl, apiKey, enabled, timeoutMs, maxRetries } = req.body;
+
+    HuntIQConfigManager.updateConfig({
+      apiUrl: typeof apiUrl === 'string' ? apiUrl.trim() : undefined,
+      apiKey: typeof apiKey === 'string' ? apiKey.trim() : undefined,
+      enabled: enabled !== undefined ? Boolean(enabled) : undefined,
+      timeoutMs: timeoutMs !== undefined ? parseInt(String(timeoutMs), 10) : undefined,
+      maxRetries: maxRetries !== undefined ? parseInt(String(maxRetries), 10) : undefined
+    });
+
+    // Persist to .env file for persistence across server restarts
+    persistEnvSettings({
+      HUNTIQ_API_URL: typeof apiUrl === 'string' && apiUrl.trim() ? apiUrl.trim() : undefined,
+      HUNTIQ_API_KEY: typeof apiKey === 'string' && apiKey.trim() && !apiKey.includes('••••') ? apiKey.trim() : undefined,
+      HUNTIQ_INTEGRATION_ENABLED: enabled !== undefined ? String(enabled) : undefined,
+      HUNTIQ_TIMEOUT_MS: timeoutMs !== undefined ? String(timeoutMs) : undefined,
+      HUNTIQ_MAX_RETRIES: maxRetries !== undefined ? String(maxRetries) : undefined
+    });
+
+    const updated = HuntIQConfigManager.getConfig();
+    return res.json({
+      success: true,
+      message: 'HUNTIQ configuration saved successfully',
+      apiUrl: updated.apiUrl,
+      apiKey: updated.apiKey ? '••••••••' + (updated.apiKey.length > 4 ? updated.apiKey.slice(-4) : '') : '',
+      hasApiKey: Boolean(updated.apiKey),
+      enabled: updated.enabled,
+      timeoutMs: updated.timeoutMs,
+      maxRetries: updated.maxRetries,
+      isConfigured: HuntIQConfigManager.isConfigured()
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 /**
  * Connection & health check for configured HUNTIQ integration
  */

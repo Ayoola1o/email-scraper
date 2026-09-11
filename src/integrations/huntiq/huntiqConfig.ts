@@ -80,4 +80,35 @@ export class HuntIQConfigManager {
       maxRetries: config.maxRetries
     };
   }
+
+  /**
+   * Updates in-memory configuration environment variables
+   */
+  static updateConfig(updates: {
+    apiUrl?: string;
+    apiKey?: string;
+    enabled?: boolean;
+    timeoutMs?: number;
+    maxRetries?: number;
+  }): HuntIQConfig {
+    if (updates.apiUrl !== undefined) {
+      process.env.HUNTIQ_API_URL = updates.apiUrl.trim();
+    }
+    if (updates.apiKey !== undefined && updates.apiKey.trim() !== '') {
+      // Do not overwrite with masked values
+      if (!updates.apiKey.includes('••••')) {
+        process.env.HUNTIQ_API_KEY = updates.apiKey.trim();
+      }
+    }
+    if (updates.enabled !== undefined) {
+      process.env.HUNTIQ_INTEGRATION_ENABLED = String(updates.enabled);
+    }
+    if (updates.timeoutMs !== undefined) {
+      process.env.HUNTIQ_TIMEOUT_MS = String(updates.timeoutMs);
+    }
+    if (updates.maxRetries !== undefined) {
+      process.env.HUNTIQ_MAX_RETRIES = String(updates.maxRetries);
+    }
+    return this.getConfig();
+  }
 }
