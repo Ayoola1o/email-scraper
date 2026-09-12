@@ -85,6 +85,16 @@ function saveFolders(folders: Folder[]): void {
 }
 
 /**
+ * Returns metadata about the folder storage driver (local file or ephemeral serverless)
+ */
+export function getStorageDriverInfo(): { storageType: 'local_json_file' | 'ephemeral_serverless'; filePath: string } {
+  return {
+    storageType: isServerless ? 'ephemeral_serverless' : 'local_json_file',
+    filePath: FOLDERS_FILE
+  };
+}
+
+/**
  * Returns all saved folders with record counts
  */
 export function getAllFolders(): Array<Omit<Folder, 'records'> & { count: number }> {
@@ -103,7 +113,10 @@ export function getAllFolders(): Array<Omit<Folder, 'records'> & { count: number
  */
 export function createFolder(name: string): Folder {
   const folders = loadFolders();
-  const cleanName = name.trim();
+  const cleanName = (name || '').trim().slice(0, 100);
+  if (!cleanName) {
+    throw new Error('Folder name must be a non-empty string up to 100 characters');
+  }
   const existing = folders.find(f => f.name.toLowerCase() === cleanName.toLowerCase());
   if (existing) {
     return existing;
@@ -123,7 +136,7 @@ export function createFolder(name: string): Folder {
 }
 
 /**
- * Saves/merges email records into a folder
+ * Saves/merges email records into a folder (capped at 10,000 records per folder)
  */
 export function saveRecordsToFolder(folderId: string, newRecords: ScrapedEmailRecord[]): Folder | null {
   const folders = loadFolders();
@@ -138,10 +151,13 @@ export function saveRecordsToFolder(folderId: string, newRecords: ScrapedEmailRe
   }
 
   for (const r of newRecords) {
-    emailMap.set(r.email.toLowerCase(), r);
+    if (r && r.email) {
+      emailMap.set(r.email.toLowerCase(), r);
+    }
   }
 
-  folder.records = Array.from(emailMap.values());
+  const MAX_RECORDS_PER_FOLDER = 10000;
+  folder.records = Array.from(emailMap.values()).slice(0, MAX_RECORDS_PER_FOLDER);
   folder.updatedAt = new Date().toISOString();
   saveFolders(folders);
   return folder;

@@ -24,7 +24,32 @@ import {
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-app.use(cors());
+// Configurable CORS with production origin safeguards
+const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(s => s.trim())
+  : null;
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow non-browser requests (mobile, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (!allowedOrigins || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origin not allowed by CORS'));
+  },
+  credentials: true
+}));
+
+// Standard Security Headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -55,15 +80,37 @@ interface ActiveCrawlJob {
  */
 const activeJobs = new Map<string, ActiveCrawlJob>();
 
-// Clean up jobs older than 1 hour
-const cleanupTimer = setInterval(() => {
+// Bounded in-memory jobs limits
+const MAX_ENDED_JOBS = 50;
+const MAX_RECORDS_PER_JOB = 5000;
+
+function pruneActiveJobs(): void {
   const now = Date.now();
+  const endedJobs: { id: string; endedAt: number }[] = [];
+
   for (const [id, job] of activeJobs.entries()) {
-    if (job.endedAt && now - job.endedAt > 3600000) {
-      activeJobs.delete(id);
+    if (job.endedAt) {
+      if (now - job.endedAt > 3600000) {
+        // Clean up jobs older than 1 hour
+        activeJobs.delete(id);
+      } else {
+        endedJobs.push({ id, endedAt: job.endedAt });
+      }
     }
   }
-}, 60000);
+
+  // If completed/ended jobs exceed MAX_ENDED_JOBS, purge oldest entries
+  if (endedJobs.length > MAX_ENDED_JOBS) {
+    endedJobs.sort((a, b) => a.endedAt - b.endedAt);
+    const toDelete = endedJobs.slice(0, endedJobs.length - MAX_ENDED_JOBS);
+    for (const item of toDelete) {
+      activeJobs.delete(item.id);
+    }
+  }
+}
+
+// Clean up jobs periodically
+const cleanupTimer = setInterval(pruneActiveJobs, 60000);
 cleanupTimer.unref();
 
 /* ========================================================================= */
@@ -161,12 +208,15 @@ app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
     // Run crawl asynchronously in background
     (async () => {
       try {
+        const safeTimeout = Math.min(60000, Math.max(1000, parseInt(String(timeout || 15000), 10) || 15000));
+        const safeDelay = Math.min(10000, Math.max(0, parseInt(String(delayMs || 250), 10) || 250));
+
         const result = await scrapeEmailRecordsFromWebsite(job.url, {
           maxDepth: limits.depth,
           maxPages: limits.pages,
           sameDomainOnly: Boolean(sameDomainOnly),
-          timeout: parseInt(String(timeout), 10),
-          delayMs: parseInt(String(delayMs), 10),
+          timeout: safeTimeout,
+          delayMs: safeDelay,
           isCancelled: () => job.cancelled,
           onProgress: (progress) => {
             job.progress = progress;
@@ -174,7 +224,9 @@ app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
             broadcastJobEvent(job, 'progress', progress);
           },
           onRecordFound: (rec) => {
-            job.records.push(rec);
+            if (job.records.length < MAX_RECORDS_PER_JOB) {
+              job.records.push(rec);
+            }
             broadcastJobEvent(job, 'record', rec);
           },
           onError: (errUrl, err) => {
@@ -184,10 +236,11 @@ app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
         });
 
         job.status = job.cancelled ? 'cancelled' : 'completed';
-        job.records = result.records;
+        job.records = result.records.slice(0, MAX_RECORDS_PER_JOB);
         job.pagesVisited = result.pagesVisited;
         job.errors = result.errors;
         job.endedAt = Date.now();
+        pruneActiveJobs();
 
         broadcastJobEvent(job, 'done', {
           jobId,
@@ -201,6 +254,7 @@ app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
       } catch (err: any) {
         job.status = 'error';
         job.endedAt = Date.now();
+        pruneActiveJobs();
         broadcastJobEvent(job, 'error', { message: err.message });
       }
     })();
@@ -388,6 +442,10 @@ app.post('/api/export', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Records array is required' });
     }
 
+    if (records.length > 50000) {
+      return res.status(400).json({ error: 'Cannot export more than 50,000 records at once' });
+    }
+
     const validFormats = ['csv', 'json', 'txt', 'vcf'];
     if (!validFormats.includes(format)) {
       return res.status(400).json({ error: `Invalid format. Must be one of: ${validFormats.join(', ')}` });
@@ -409,40 +467,34 @@ app.post('/api/export', (req: Request, res: Response) => {
 /* ========================================================================= */
 
 /**
- * Helper to persist HUNTIQ settings to .env file
+ * Administrator authorization check for sensitive server configuration endpoints
  */
-function persistEnvSettings(settings: Record<string, string | undefined>) {
-  try {
-    const envPath = path.resolve(__dirname, '../../.env');
-    let content = '';
-    if (fs.existsSync(envPath)) {
-      content = fs.readFileSync(envPath, 'utf8');
-    } else {
-      const examplePath = path.resolve(__dirname, '../../.env.example');
-      if (fs.existsSync(examplePath)) {
-        content = fs.readFileSync(examplePath, 'utf8');
-      }
-    }
+function isAuthorizedAdmin(req: Request): boolean {
+  const adminKey = process.env.ADMIN_API_KEY || process.env.SCRAPER_ADMIN_TOKEN;
 
-    for (const [key, value] of Object.entries(settings)) {
-      if (value === undefined) continue;
-      const regex = new RegExp(`^${key}=.*$`, 'm');
-      if (regex.test(content)) {
-        content = content.replace(regex, `${key}=${value}`);
-      } else {
-        content += `\n${key}=${value}`;
-      }
+  if (adminKey) {
+    const authHeader = req.headers['authorization'];
+    const xAdminKey = req.headers['x-admin-key'];
+    if (authHeader && (authHeader === `Bearer ${adminKey}` || authHeader === adminKey)) {
+      return true;
     }
-
-    fs.writeFileSync(envPath, content.trim() + '\n', 'utf8');
-  } catch (err) {
-    // Non-fatal if filesystem is read-only (e.g. serverless)
+    if (xAdminKey && xAdminKey === adminKey) {
+      return true;
+    }
+    return false;
   }
+
+  // In test and local development, allow localhost loopback when no admin secret is configured
+  const isDevOrTest = process.env.NODE_ENV !== 'production';
+  const clientIp = req.ip || req.socket.remoteAddress || '';
+  const isLoopback = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '::ffff:127.0.0.1' || req.hostname === 'localhost';
+
+  return isDevOrTest && isLoopback;
 }
 
 /**
  * GET /api/integrations/huntiq/config
- * Retrieves current server-managed HUNTIQ configuration
+ * Retrieves current server-managed HUNTIQ configuration without returning secrets
  */
 app.get('/api/integrations/huntiq/config', (req: Request, res: Response) => {
   try {
@@ -450,13 +502,14 @@ app.get('/api/integrations/huntiq/config', (req: Request, res: Response) => {
     const isConfigured = HuntIQConfigManager.isConfigured();
     return res.json({
       success: true,
-      apiUrl: config.apiUrl || 'https://huntiq.example.com',
-      apiKey: config.apiKey ? '••••••••' + (config.apiKey.length > 4 ? config.apiKey.slice(-4) : '') : '',
+      apiUrl: config.apiUrl || '',
+      apiKey: '',
       hasApiKey: Boolean(config.apiKey),
       enabled: config.enabled,
       timeoutMs: config.timeoutMs || 30000,
       maxRetries: config.maxRetries || 3,
-      isConfigured
+      isConfigured,
+      storage: 'runtime_memory'
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
@@ -465,35 +518,37 @@ app.get('/api/integrations/huntiq/config', (req: Request, res: Response) => {
 
 /**
  * POST /api/integrations/huntiq/config
- * Updates server-side HUNTIQ credentials and configuration
+ * Updates server-side HUNTIQ credentials and configuration in process memory
+ * Requires administrator authorization and validates inputs strictly.
  */
 app.post('/api/integrations/huntiq/config', (req: Request, res: Response) => {
   try {
-    const { apiUrl, apiKey, enabled, timeoutMs, maxRetries } = req.body;
+    if (!isAuthorizedAdmin(req)) {
+      return res.status(401).json({
+        success: false,
+        error: 'Unauthorized: Administrator authentication required to update integration configuration'
+      });
+    }
 
-    HuntIQConfigManager.updateConfig({
-      apiUrl: typeof apiUrl === 'string' ? apiUrl.trim() : undefined,
-      apiKey: typeof apiKey === 'string' ? apiKey.trim() : undefined,
-      enabled: enabled !== undefined ? Boolean(enabled) : undefined,
-      timeoutMs: timeoutMs !== undefined ? parseInt(String(timeoutMs), 10) : undefined,
-      maxRetries: maxRetries !== undefined ? parseInt(String(maxRetries), 10) : undefined
-    });
+    const validation = HuntIQConfigManager.validateConfigUpdates(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: validation.error || 'Invalid configuration parameters'
+      });
+    }
 
-    // Persist to .env file for persistence across server restarts
-    persistEnvSettings({
-      HUNTIQ_API_URL: typeof apiUrl === 'string' && apiUrl.trim() ? apiUrl.trim() : undefined,
-      HUNTIQ_API_KEY: typeof apiKey === 'string' && apiKey.trim() && !apiKey.includes('••••') ? apiKey.trim() : undefined,
-      HUNTIQ_INTEGRATION_ENABLED: enabled !== undefined ? String(enabled) : undefined,
-      HUNTIQ_TIMEOUT_MS: timeoutMs !== undefined ? String(timeoutMs) : undefined,
-      HUNTIQ_MAX_RETRIES: maxRetries !== undefined ? String(maxRetries) : undefined
-    });
+    if (validation.cleanUpdates) {
+      HuntIQConfigManager.updateConfig(validation.cleanUpdates);
+    }
 
     const updated = HuntIQConfigManager.getConfig();
     return res.json({
       success: true,
-      message: 'HUNTIQ configuration saved successfully',
+      message: 'HUNTIQ runtime configuration updated successfully (in-memory)',
+      storage: 'runtime_memory',
       apiUrl: updated.apiUrl,
-      apiKey: updated.apiKey ? '••••••••' + (updated.apiKey.length > 4 ? updated.apiKey.slice(-4) : '') : '',
+      apiKey: '',
       hasApiKey: Boolean(updated.apiKey),
       enabled: updated.enabled,
       timeoutMs: updated.timeoutMs,
@@ -642,7 +697,8 @@ import {
   saveRecordsToFolder,
   getFolder,
   deleteFolder,
-  removeRecordFromFolder
+  removeRecordFromFolder,
+  getStorageDriverInfo
 } from '../utils/folderStorage';
 
 /**
@@ -651,7 +707,8 @@ import {
 app.get('/api/folders', (req: Request, res: Response) => {
   try {
     const folders = getAllFolders();
-    res.json({ success: true, folders });
+    const storageInfo = getStorageDriverInfo();
+    res.json({ success: true, folders, storage: storageInfo.storageType });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -666,7 +723,11 @@ app.post('/api/folders', (req: Request, res: Response) => {
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'Folder name is required' });
     }
-    const folder = createFolder(name.trim());
+    const cleanName = name.trim();
+    if (cleanName.length > 100) {
+      return res.status(400).json({ error: 'Folder name cannot exceed 100 characters' });
+    }
+    const folder = createFolder(cleanName);
     res.json({ success: true, folder });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -678,7 +739,11 @@ app.post('/api/folders', (req: Request, res: Response) => {
  */
 app.get('/api/folders/:folderId', (req: Request, res: Response) => {
   try {
-    const folder = getFolder(req.params.folderId);
+    const folderId = (req.params.folderId || '').trim();
+    if (!folderId) {
+      return res.status(400).json({ error: 'Valid folder ID is required' });
+    }
+    const folder = getFolder(folderId);
     if (!folder) {
       return res.status(404).json({ error: 'Folder not found' });
     }
@@ -693,11 +758,18 @@ app.get('/api/folders/:folderId', (req: Request, res: Response) => {
  */
 app.post('/api/folders/:folderId/save', (req: Request, res: Response) => {
   try {
+    const folderId = (req.params.folderId || '').trim();
+    if (!folderId) {
+      return res.status(400).json({ error: 'Valid folder ID is required' });
+    }
     const { records } = req.body;
     if (!Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ error: 'Valid records array is required' });
     }
-    const folder = saveRecordsToFolder(req.params.folderId, records);
+    if (records.length > 10000) {
+      return res.status(400).json({ error: 'Cannot save more than 10,000 records at once' });
+    }
+    const folder = saveRecordsToFolder(folderId, records);
     if (!folder) {
       return res.status(404).json({ error: 'Folder not found' });
     }
@@ -712,7 +784,11 @@ app.post('/api/folders/:folderId/save', (req: Request, res: Response) => {
  */
 app.delete('/api/folders/:folderId', (req: Request, res: Response) => {
   try {
-    const deleted = deleteFolder(req.params.folderId);
+    const folderId = (req.params.folderId || '').trim();
+    if (!folderId) {
+      return res.status(400).json({ error: 'Valid folder ID is required' });
+    }
+    const deleted = deleteFolder(folderId);
     if (!deleted) {
       return res.status(404).json({ error: 'Folder not found' });
     }
@@ -727,8 +803,12 @@ app.delete('/api/folders/:folderId', (req: Request, res: Response) => {
  */
 app.delete('/api/folders/:folderId/records/:email', (req: Request, res: Response) => {
   try {
-    const email = decodeURIComponent(req.params.email);
-    const removed = removeRecordFromFolder(req.params.folderId, email);
+    const folderId = (req.params.folderId || '').trim();
+    const email = decodeURIComponent(req.params.email || '').trim();
+    if (!folderId || !email) {
+      return res.status(400).json({ error: 'Valid folder ID and email are required' });
+    }
+    const removed = removeRecordFromFolder(folderId, email);
     res.json({ success: removed });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -854,6 +934,16 @@ app.get('/api/demo/careers', (req: Request, res: Response) => {
   <p><a href="/api/demo">Back to Home</a></p>
 </body>
 </html>`);
+});
+
+// Global error handling middleware - sanitize error responses and avoid leaking internals
+app.use((err: any, req: Request, res: Response, next: any) => {
+  const statusCode = err.status || err.statusCode || 500;
+  const isProd = process.env.NODE_ENV === 'production';
+  return res.status(statusCode).json({
+    success: false,
+    error: isProd && statusCode >= 500 ? 'Internal server error' : (err.message || 'Unknown error occurred')
+  });
 });
 
 /* ========================================================================= */

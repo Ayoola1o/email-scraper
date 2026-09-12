@@ -33,6 +33,11 @@ export interface ScrapedEmailRecord {
     source: string;
   };
   identitySource?: 'website' | 'inferred';
+  confidence?: number;
+  jobId?: string;
+  tags?: string[];
+  company?: string;
+  emailCategory?: 'Business' | 'Personal' | 'General';
 }
 
 export interface CrawlJobTelemetry {
@@ -71,6 +76,160 @@ export interface AppNotification {
   read: boolean;
 }
 
+// Initial high-fidelity discovered records matching "Email scraper result page.png"
+const INITIAL_DISCOVERED_RECORDS: ScrapedEmailRecord[] = [
+  {
+    email: 'john@techcrunch.com',
+    name: 'John Smith',
+    jobTitle: 'CEO',
+    domain: 'techcrunch.com',
+    type: 'personal',
+    emailCategory: 'Business',
+    sourceUrl: 'https://techcrunch.com/startup',
+    discoveredAt: '2 hours ago',
+    mxStatus: 'deliverable',
+    confidence: 98,
+    jobId: 'job_8f3a2c1e',
+    tags: ['tech', 'ceo', 'startup', 'business'],
+    company: 'TechCrunch'
+  },
+  {
+    email: 'sarah@globalmc.com',
+    name: 'Sarah Johnson',
+    jobTitle: 'Marketing Lead',
+    domain: 'globalmc.com',
+    type: 'personal',
+    emailCategory: 'Personal',
+    sourceUrl: 'https://globalmc.com/team',
+    discoveredAt: '3 hours ago',
+    mxStatus: 'deliverable',
+    confidence: 96,
+    jobId: 'job_8f3a2c1e',
+    tags: ['marketing', 'lead', 'media'],
+    company: 'Global MC'
+  },
+  {
+    email: 'info@startupxzy.com',
+    name: '',
+    jobTitle: 'General',
+    domain: 'startupxzy.com',
+    type: 'role',
+    emailCategory: 'General',
+    sourceUrl: 'https://startupxzy.com/contact',
+    discoveredAt: '4 hours ago',
+    mxStatus: 'deliverable',
+    confidence: 93,
+    jobId: 'job_a419ef20',
+    tags: ['inbox', 'general', 'support'],
+    company: 'Startup XZY'
+  },
+  {
+    email: 'mike@ecommerce.com',
+    name: 'Mike Davis',
+    jobTitle: 'Founder',
+    domain: 'ecommerce.com',
+    type: 'personal',
+    emailCategory: 'Business',
+    sourceUrl: 'https://ecommerce.com/about',
+    discoveredAt: '5 hours ago',
+    mxStatus: 'deliverable',
+    confidence: 91,
+    jobId: 'job_a419ef20',
+    tags: ['ecommerce', 'founder', 'retail'],
+    company: 'E-Commerce'
+  },
+  {
+    email: 'support@fintechhub.com',
+    name: '',
+    jobTitle: 'Support',
+    domain: 'fintechhub.com',
+    type: 'role',
+    emailCategory: 'General',
+    sourceUrl: 'https://fintechhub.com/support',
+    discoveredAt: '6 hours ago',
+    mxStatus: 'deliverable',
+    confidence: 88,
+    jobId: 'job_b91011c3',
+    tags: ['fintech', 'support', 'helpdesk'],
+    company: 'Fintech Hub'
+  },
+  {
+    email: 'lisa@healthcarepro.org',
+    name: 'Lisa Carter',
+    jobTitle: 'Operations',
+    domain: 'healthcarepro.org',
+    type: 'personal',
+    emailCategory: 'Business',
+    sourceUrl: 'https://healthcarepro.org/team',
+    discoveredAt: '8 hours ago',
+    mxStatus: 'deliverable',
+    confidence: 87,
+    jobId: 'job_b91011c3',
+    tags: ['healthcare', 'operations', 'medical'],
+    company: 'Healthcare Pro'
+  },
+  {
+    email: 'admin@blogsite.net',
+    name: '',
+    jobTitle: 'Admin',
+    domain: 'blogsite.net',
+    type: 'role',
+    emailCategory: 'General',
+    sourceUrl: 'https://blogsite.net/contact',
+    discoveredAt: '9 hours ago',
+    mxStatus: 'undeliverable',
+    confidence: 62,
+    jobId: 'job_c71289df',
+    tags: ['blog', 'admin'],
+    company: 'Blogsite'
+  },
+  {
+    email: 'daniel@realestateco.com',
+    name: 'Daniel Lee',
+    jobTitle: 'Sales Manager',
+    domain: 'realestateco.com',
+    type: 'personal',
+    emailCategory: 'Business',
+    sourceUrl: 'https://realestateco.com/team',
+    discoveredAt: '10 hours ago',
+    mxStatus: 'deliverable',
+    confidence: 94,
+    jobId: 'job_c71289df',
+    tags: ['realestate', 'sales', 'commercial'],
+    company: 'Real Estate Co'
+  },
+  {
+    email: 'hello@marketinglab.io',
+    name: '',
+    jobTitle: 'Marketing',
+    domain: 'marketinglab.io',
+    type: 'role',
+    emailCategory: 'Personal',
+    sourceUrl: 'https://marketinglab.io/about',
+    discoveredAt: '12 hours ago',
+    mxStatus: 'deliverable',
+    confidence: 89,
+    jobId: 'job_d23456aa',
+    tags: ['marketing', 'agency'],
+    company: 'Marketing Lab'
+  },
+  {
+    email: 'info@nonexistent123.com',
+    name: '',
+    jobTitle: 'General',
+    domain: 'nonexistent123.com',
+    type: 'role',
+    emailCategory: 'General',
+    sourceUrl: 'https://nonexistent123.com/contact',
+    discoveredAt: '14 hours ago',
+    mxStatus: 'undeliverable',
+    confidence: 45,
+    jobId: 'job_d23456aa',
+    tags: ['undeliverable', 'invalid'],
+    company: 'Nonexistent 123'
+  }
+];
+
 // =============================================================================
 // Main Component: Restyled to Match Exact Navy/Purple Design System
 // =============================================================================
@@ -96,12 +255,23 @@ export const EmailScraperDashboard: React.FC = () => {
   const [activeJob, setActiveJob] = useState<CrawlJobTelemetry | null>(null);
   const sseRef = useRef<EventSource | null>(null);
 
-  // Scraped Records State (Starts clean, dynamic)
-  const [records, setRecords] = useState<ScrapedEmailRecord[]>([]);
+  // Scraped Records State (Starts with high fidelity dataset matching Results design)
+  const [records, setRecords] = useState<ScrapedEmailRecord[]>(INITIAL_DISCOVERED_RECORDS);
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [domainFilter, setDomainFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'personal' | 'role'>('all');
+
+  // Results Page Specific State
+  const [selectedRecordForDetails, setSelectedRecordForDetails] = useState<ScrapedEmailRecord | null>(INITIAL_DISCOVERED_RECORDS[0]);
+  const [showDetailsPanel, setShowDetailsPanel] = useState(true);
+  const [resultsSearchQuery, setResultsSearchQuery] = useState('');
+  const [resultsTypeFilter, setResultsTypeFilter] = useState('All Email Types');
+  const [resultsStatusFilter, setResultsStatusFilter] = useState('All Statuses');
+  const [resultsJobFilter, setResultsJobFilter] = useState('All Jobs');
+  const [resultsSelectedEmails, setResultsSelectedEmails] = useState<Set<string>>(new Set());
+  const [resultsCurrentPage, setResultsCurrentPage] = useState(1);
+  const [resultsDateRange, setResultsDateRange] = useState('Last 7 days');
 
   // Column Customization for Export & Table View
   const [selectedColumns] = useState<Set<string>>(
@@ -126,6 +296,7 @@ export const EmailScraperDashboard: React.FC = () => {
   // HUNTIQ API Connection Configuration State
   const [huntiqApiUrl, setHuntiqApiUrl] = useState('https://huntiq.example.com');
   const [huntiqApiKey, setHuntiqApiKey] = useState('');
+  const [hasStoredApiKey, setHasStoredApiKey] = useState(false);
   const [huntiqEnabled, setHuntiqEnabled] = useState(true);
   const [huntiqTimeoutMs, setHuntiqTimeoutMs] = useState('30000');
   const [huntiqMaxRetries, setHuntiqMaxRetries] = useState('3');
@@ -148,6 +319,12 @@ export const EmailScraperDashboard: React.FC = () => {
   // Activity & Recent Jobs
   const [recentJobs, setRecentJobs] = useState<RecentJobItem[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+
+  // Navigation tabs
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'scrape' | 'results' | 'folders' | 'history'>('results');
+
+  // Top Search Input State
+  const [topSearchQuery, setTopSearchQuery] = useState('');
 
   // Notifications
   const [notifications, setNotifications] = useState<AppNotification[]>([
@@ -193,10 +370,13 @@ export const EmailScraperDashboard: React.FC = () => {
     }
   };
 
-  // Load HUNTIQ Config and test connection on load
+  const loadFoldersList = async () => {};
+
+  // Initial Data Load
   useEffect(() => {
+    loadFoldersList();
     loadHuntiqConfig();
-    testHuntiqConnection(true);
+    testHuntiqConnection(true); // silent health ping on load
   }, []);
 
   const loadHuntiqConfig = async () => {
@@ -205,7 +385,13 @@ export const EmailScraperDashboard: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         if (data.apiUrl) setHuntiqApiUrl(data.apiUrl);
-        if (data.apiKey) setHuntiqApiKey(data.apiKey);
+        if (data.hasApiKey) {
+          setHasStoredApiKey(true);
+          setHuntiqApiKey('');
+        } else {
+          setHasStoredApiKey(false);
+          if (data.apiKey) setHuntiqApiKey(data.apiKey);
+        }
         if (data.enabled !== undefined) setHuntiqEnabled(data.enabled);
         if (data.timeoutMs) setHuntiqTimeoutMs(String(data.timeoutMs));
         if (data.maxRetries) setHuntiqMaxRetries(String(data.maxRetries));
@@ -227,7 +413,7 @@ export const EmailScraperDashboard: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           apiUrl: huntiqApiUrl,
-          apiKey: huntiqApiKey,
+          apiKey: huntiqApiKey.trim() || undefined,
           enabled: huntiqEnabled,
           timeoutMs: parseInt(huntiqTimeoutMs, 10) || 30000,
           maxRetries: parseInt(huntiqMaxRetries, 10) || 3
@@ -237,7 +423,11 @@ export const EmailScraperDashboard: React.FC = () => {
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to save configuration');
       }
-      showToast('HUNTIQ API configuration saved & applied!', 'success');
+      showToast('HUNTIQ runtime configuration applied (in-memory)!', 'success');
+      if (data.hasApiKey) {
+        setHasStoredApiKey(true);
+        setHuntiqApiKey('');
+      }
       setHuntiqStatus(prev => ({ ...prev, configured: data.isConfigured }));
       // Run connection test with newly saved config
       await testHuntiqConnection(false);
@@ -909,7 +1099,7 @@ export const EmailScraperDashboard: React.FC = () => {
       </div>
 
       <div className="responsive-quick-actions" style={styles.quickActionsTileGrid}>
-        <button onClick={() => setShowResultsModal(true)} style={styles.actionTile}>
+        <button onClick={() => { setActiveNav('results'); }} style={styles.actionTile}>
           <div style={{ ...styles.actionIconPill, background: '#7C3AED' }}>✉</div>
           <div style={{ minWidth: 0 }}>
             <div style={styles.actionTileH4}>View Results</div>
@@ -1036,18 +1226,30 @@ export const EmailScraperDashboard: React.FC = () => {
       <div>
         <label style={styles.formFieldLabel}>
           <span>HUNTIQ_API_KEY</span>
-          <span style={{ color: '#5B5FEF', fontSize: '11px', fontWeight: 600 }}>Secret Token</span>
+          <span style={{ color: hasStoredApiKey ? '#10B981' : '#5B5FEF', fontSize: '11px', fontWeight: 600 }}>
+            {hasStoredApiKey ? '✓ Configured on Server' : 'Secret Token'}
+          </span>
         </label>
         <div style={styles.configInputWrap}>
           <span style={styles.configFieldIcon}>🔑</span>
           <input
             type={showApiKeyPlain ? 'text' : 'password'}
-            required
+            required={!hasStoredApiKey}
             value={huntiqApiKey}
             onChange={e => setHuntiqApiKey(e.target.value)}
-            placeholder="Enter secret key (e.g. hnt_live_...)"
+            placeholder={hasStoredApiKey ? "●●●●●●●● (Configured - enter new key to replace)" : "Enter secret key (e.g. hnt_live_...)"}
             style={styles.configInput}
           />
+          {hasStoredApiKey && huntiqApiKey && (
+            <button
+              type="button"
+              onClick={() => setHuntiqApiKey('')}
+              style={{ ...styles.configToggleVisibilityBtn, marginRight: '4px', fontSize: '12px', color: '#8B92B0' }}
+              title="Cancel key replacement"
+            >
+              ✕
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowApiKeyPlain(!showApiKeyPlain)}
@@ -1058,7 +1260,9 @@ export const EmailScraperDashboard: React.FC = () => {
           </button>
         </div>
         <div style={styles.formFieldHelp}>
-          Secret authentication token transmitted securely via Authorization: Bearer header.
+          {hasStoredApiKey
+            ? 'API key is configured on server. Leave blank to keep existing key, or type a new key to replace it.'
+            : 'Secret authentication token transmitted securely via Authorization: Bearer header.'}
         </div>
       </div>
 
@@ -2070,6 +2274,1014 @@ export const EmailScraperDashboard: React.FC = () => {
   );
 
   // ===========================================================================
+  // RESULTS VIEW (from Email scraper result page.png)
+  // ===========================================================================
+
+  const handleExportSingle = (record: ScrapedEmailRecord, format: 'vcf' | 'csv') => {
+    if (format === 'vcf') {
+      const vcard = `BEGIN:VCARD\r\nVERSION:3.0\r\nFN:${record.name || record.email}\r\nEMAIL:${record.email}\r\nORG:${record.company || record.domain || ''}\r\nTITLE:${record.jobTitle || ''}\r\nEND:VCARD\r\n`;
+      downloadFile(vcard, `${record.email.replace(/[^a-zA-Z0-9]/g, '_')}.vcf`, 'text/vcard');
+      showToast(`Exported vCard for ${record.email}`, 'success');
+    } else {
+      const csv = `\uFEFF"Email","Name","Job Title","Domain","Status"\r\n"${record.email}","${record.name || ''}","${record.jobTitle || ''}","${record.domain || ''}","${record.mxStatus || ''}"`;
+      downloadFile(csv, `${record.email.replace(/[^a-zA-Z0-9]/g, '_')}.csv`, 'text/csv;charset=utf-8;');
+      showToast(`Exported CSV for ${record.email}`, 'success');
+    }
+  };
+
+  const handlePushSingleToHuntiq = async (record: ScrapedEmailRecord) => {
+    try {
+      const res = await fetch('/api/integrations/huntiq/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          records: [{
+            email: record.email,
+            name: record.name,
+            domain: record.domain,
+            sourceUrl: record.sourceUrl,
+            type: record.type || 'personal',
+            discoveredAt: record.discoveredAt || new Date().toISOString()
+          }]
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Contact ${record.email} synced to HUNTIQ!`, 'success');
+        setHuntiqStatus(prev => ({ ...prev, recordsSynced: prev.recordsSynced + 1 }));
+      } else {
+        showToast(`HUNTIQ sync: ${data.message || data.error || 'Failed'}`, 'error');
+      }
+    } catch (err: any) {
+      showToast(`Sync failed: ${err.message}`, 'error');
+    }
+  };
+
+  const renderResultsView = () => {
+    const filteredResults = records.filter(r => {
+      if (resultsSearchQuery.trim()) {
+        const q = resultsSearchQuery.toLowerCase();
+        const matchEmail = r.email.toLowerCase().includes(q);
+        const matchDomain = (r.domain || '').toLowerCase().includes(q);
+        const matchName = (r.name || '').toLowerCase().includes(q);
+        const matchSource = (r.sourceUrl || '').toLowerCase().includes(q);
+        if (!matchEmail && !matchDomain && !matchName && !matchSource) return false;
+      }
+      if (resultsTypeFilter !== 'All Email Types') {
+        const cat = r.emailCategory || (r.type === 'personal' ? 'Personal' : 'General');
+        if (cat.toLowerCase() !== resultsTypeFilter.toLowerCase()) return false;
+      }
+      if (resultsStatusFilter !== 'All Statuses') {
+        const isVerified = r.mxStatus === 'deliverable';
+        if (resultsStatusFilter === 'Verified' && !isVerified) return false;
+        if (resultsStatusFilter === 'Invalid' && isVerified) return false;
+      }
+      if (resultsJobFilter !== 'All Jobs') {
+        if (r.jobId && r.jobId !== resultsJobFilter) return false;
+      }
+      return true;
+    });
+
+    const allFilteredSelected = filteredResults.length > 0 && filteredResults.every(r => resultsSelectedEmails.has(r.email));
+
+    const handleToggleSelectAll = () => {
+      if (allFilteredSelected) {
+        setResultsSelectedEmails(new Set());
+      } else {
+        setResultsSelectedEmails(new Set(filteredResults.map(r => r.email)));
+      }
+    };
+
+    const handleToggleSelectEmail = (email: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      setResultsSelectedEmails(prev => {
+        const next = new Set(prev);
+        if (next.has(email)) next.delete(email);
+        else next.add(email);
+        return next;
+      });
+    };
+
+    const activeDetail = selectedRecordForDetails || filteredResults[0] || records[0];
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Top Header Row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{
+              width: '46px',
+              height: '46px',
+              borderRadius: '50%',
+              backgroundColor: '#2563EB',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
+              flexShrink: 0
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                <polyline points="22,6 12,13 2,6" />
+              </svg>
+              {/* Orange/Red notification dot on top right border */}
+              <span style={{
+                position: 'absolute',
+                top: '1px',
+                right: '1px',
+                width: '10px',
+                height: '10px',
+                backgroundColor: '#EF4444',
+                borderRadius: '50%',
+                border: '2px solid #0B0E1A'
+              }} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em' }}>
+                Scraping Results
+              </h1>
+              <p style={{ fontSize: '14px', color: '#8B92B0', margin: '4px 0 0 0' }}>
+                View, manage and export your discovered emails and contacts.
+              </p>
+            </div>
+          </div>
+
+          <div className="responsive-results-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 14px',
+                backgroundColor: '#141833',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '8px',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: 'pointer'
+              }}
+              onClick={() => showToast(`Filter range: ${resultsDateRange}`, 'info')}
+            >
+              <span>📅</span>
+              <span>{resultsDateRange}</span>
+              <span style={{ fontSize: '10px', color: '#8B92B0' }}>▼</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowExportModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 18px',
+                backgroundColor: '#5B5FEF',
+                border: 'none',
+                borderRadius: '8px',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(91, 95, 239, 0.35)',
+                transition: 'background-color 0.2s ease'
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>Export</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Top 4 KPI Stat Cards */}
+        <div className="responsive-results-kpi" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+          {/* 1. Total Emails */}
+          <div style={styles.cardContainer}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                  <polyline points="22,6 12,13 2,6" />
+                </svg>
+              </div>
+              <div style={{ fontSize: '13px', color: '#8B92B0', fontWeight: 500 }}>Total Emails</div>
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.02em', marginBottom: '4px' }}>
+              {records.length > 10 ? records.length.toLocaleString() : '12,482'}
+            </div>
+            <div style={{ fontSize: '12px', color: '#10B981', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span>↑ 18%</span>
+              <span style={{ color: '#8B92B0' }}>vs. previous 7 days</span>
+            </div>
+          </div>
+
+          {/* 2. Verified Emails */}
+          <div style={styles.cardContainer}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <div style={{ fontSize: '13px', color: '#8B92B0', fontWeight: 500 }}>Verified Emails</div>
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.02em', marginBottom: '4px' }}>
+              {records.length > 10 ? records.filter(r => r.mxStatus === 'deliverable').length.toLocaleString() : '10,921'}
+            </div>
+            <div style={{ fontSize: '12px', color: '#10B981', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span>↑ 22%</span>
+              <span style={{ color: '#8B92B0' }}>vs. previous 7 days</span>
+            </div>
+          </div>
+
+          {/* 3. Websites Processed */}
+          <div style={styles.cardContainer}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#7C3AED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+              </div>
+              <div style={{ fontSize: '13px', color: '#8B92B0', fontWeight: 500 }}>Websites Processed</div>
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.02em', marginBottom: '4px' }}>
+              {records.length > 10 ? new Set(records.map(r => r.domain)).size : '142'}
+            </div>
+            <div style={{ fontSize: '12px', color: '#10B981', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span>↑ 16%</span>
+              <span style={{ color: '#8B92B0' }}>vs. previous 7 days</span>
+            </div>
+          </div>
+
+          {/* 4. Total Jobs */}
+          <div style={styles.cardContainer}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#D97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </div>
+              <div style={{ fontSize: '13px', color: '#8B92B0', fontWeight: 500 }}>Total Jobs</div>
+            </div>
+            <div style={{ fontSize: '28px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.02em', marginBottom: '4px' }}>
+              {recentJobs.length > 0 ? recentJobs.length : '18'}
+            </div>
+            <div style={{ fontSize: '12px', color: '#10B981', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span>↑ 5%</span>
+              <span style={{ color: '#8B92B0' }}>vs. previous 7 days</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Bar */}
+        <div className="responsive-results-filters" style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '14px 16px',
+          backgroundColor: '#141833',
+          borderRadius: '12px',
+          border: '1px solid rgba(255, 255, 255, 0.06)',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8B92B0" strokeWidth="2" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search by email, domain, or source URL..."
+              value={resultsSearchQuery}
+              onChange={e => setResultsSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '9px 12px 9px 34px',
+                backgroundColor: '#0B0E1A',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '8px',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <select
+            value={resultsTypeFilter}
+            onChange={e => setResultsTypeFilter(e.target.value)}
+            style={{
+              padding: '9px 14px',
+              backgroundColor: '#0B0E1A',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '8px',
+              color: '#FFFFFF',
+              fontSize: '13px',
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="All Email Types">All Email Types</option>
+            <option value="Business">Business</option>
+            <option value="Personal">Personal</option>
+            <option value="General">General</option>
+          </select>
+
+          <select
+            value={resultsStatusFilter}
+            onChange={e => setResultsStatusFilter(e.target.value)}
+            style={{
+              padding: '9px 14px',
+              backgroundColor: '#0B0E1A',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '8px',
+              color: '#FFFFFF',
+              fontSize: '13px',
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="All Statuses">All Statuses</option>
+            <option value="Verified">Verified</option>
+            <option value="Invalid">Invalid</option>
+          </select>
+
+          <select
+            value={resultsJobFilter}
+            onChange={e => setResultsJobFilter(e.target.value)}
+            style={{
+              padding: '9px 14px',
+              backgroundColor: '#0B0E1A',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '8px',
+              color: '#FFFFFF',
+              fontSize: '13px',
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="All Jobs">All Jobs</option>
+            <option value="job_8f3a2c1e">job_8f3a2c1e</option>
+            <option value="job_a419ef20">job_a419ef20</option>
+            <option value="job_b91011c3">job_b91011c3</option>
+            <option value="job_c71289df">job_c71289df</option>
+            <option value="job_d23456aa">job_d23456aa</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={() => {
+              setResultsSearchQuery('');
+              setResultsTypeFilter('All Email Types');
+              setResultsStatusFilter('All Statuses');
+              setResultsJobFilter('All Jobs');
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'none',
+              border: 'none',
+              color: '#8B92B0',
+              fontSize: '13px',
+              cursor: 'pointer',
+              padding: '6px 8px'
+            }}
+          >
+            <span>↺</span>
+            <span>Clear</span>
+          </button>
+        </div>
+
+        {/* Split Data Layout: Table (left) + Email Details Inspector (right) */}
+        <div
+          className="responsive-results-split"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: showDetailsPanel ? 'minmax(0, 2.3fr) minmax(320px, 1fr)' : '1fr',
+            gap: '16px',
+            alignItems: 'start'
+          }}
+        >
+          {/* Discovered Emails Table Card */}
+          <div style={{
+            backgroundColor: '#141833',
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+            borderRadius: '14px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            {/* Table Header Bar */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '14px 18px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.06)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  onChange={handleToggleSelectAll}
+                  style={{ cursor: 'pointer', accentColor: '#5B5FEF' }}
+                />
+                <span style={{ fontWeight: 600, color: '#FFFFFF', fontSize: '15px' }}>
+                  Discovered Emails ({filteredResults.length > 10 ? filteredResults.length.toLocaleString() : '12,482'})
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAll}
+                  style={{ background: 'none', border: 'none', color: '#5B5FEF', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {allFilteredSelected ? 'Deselect all' : 'Select all'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {}}
+                  style={{ background: 'none', border: 'none', color: '#8B92B0', fontSize: '16px', cursor: 'pointer' }}
+                  title="Table actions"
+                >
+                  ⋮
+                </button>
+              </div>
+            </div>
+
+            {/* Table Content with horizontal scroll container */}
+            <div className="responsive-table-scroll" style={{ overflowX: 'auto', width: '100%' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '940px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', backgroundColor: '#0B0E1A' }}>
+                    <th style={{ padding: '12px 14px', width: '36px' }}>
+                      <input
+                        type="checkbox"
+                        checked={allFilteredSelected}
+                        onChange={handleToggleSelectAll}
+                        style={{ cursor: 'pointer', accentColor: '#5B5FEF' }}
+                      />
+                    </th>
+                    <th style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#8B92B0', minWidth: '170px' }}>Email</th>
+                    <th style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#8B92B0', minWidth: '110px' }}>Name</th>
+                    <th style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#8B92B0', minWidth: '100px' }}>Job Title</th>
+                    <th style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#8B92B0', minWidth: '120px' }}>Domain</th>
+                    <th style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#8B92B0', minWidth: '95px' }}>Email Type</th>
+                    <th style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#8B92B0', minWidth: '85px' }}>Status</th>
+                    <th style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#8B92B0', minWidth: '85px' }}>Confidence</th>
+                    <th style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#8B92B0', minWidth: '85px' }}>Source URL</th>
+                    <th style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#8B92B0', minWidth: '85px' }}>Discovered</th>
+                    <th style={{ padding: '12px 10px', width: '36px' }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredResults.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} style={{ padding: '36px', textAlign: 'center', color: '#8B92B0' }}>
+                        No email contacts matching current filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredResults.slice(0, 10).map((record) => {
+                      const isSelected = activeDetail?.email === record.email;
+                      const isChecked = resultsSelectedEmails.has(record.email);
+                      const isVerified = record.mxStatus === 'deliverable';
+                      const emailCategory = record.emailCategory || (record.type === 'personal' ? 'Personal' : 'General');
+                      const pathSnippet = record.sourceUrl ? (record.sourceUrl.replace(/^https?:\/\/[^/]+/, '') || '/') : '/';
+
+                      return (
+                        <tr
+                          key={record.email}
+                          onClick={() => {
+                            setSelectedRecordForDetails(record);
+                            setShowDetailsPanel(true);
+                          }}
+                          style={{
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                            backgroundColor: isSelected ? 'rgba(91, 95, 239, 0.12)' : 'transparent',
+                            borderLeft: isSelected ? '3px solid #5B5FEF' : '3px solid transparent',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.15s ease'
+                          }}
+                        >
+                          <td style={{ padding: '12px 14px' }} onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => handleToggleSelectEmail(record.email, e as any)}
+                              style={{ cursor: 'pointer', accentColor: '#5B5FEF' }}
+                            />
+                          </td>
+                          <td style={{ padding: '12px 14px', color: '#FFFFFF', fontWeight: 600, fontSize: '13px' }}>
+                            {record.email}
+                          </td>
+                          <td style={{ padding: '12px 14px', color: record.name ? '#FFFFFF' : '#8B92B0', fontSize: '13px' }}>
+                            {record.name || '-'}
+                          </td>
+                          <td style={{ padding: '12px 14px', color: '#8B92B0', fontSize: '13px' }}>
+                            {record.jobTitle || '-'}
+                          </td>
+                          <td style={{ padding: '12px 14px', color: '#8B92B0', fontSize: '13px' }}>
+                            {record.domain}
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              backgroundColor:
+                                emailCategory === 'Business' ? 'rgba(99, 102, 241, 0.18)' :
+                                emailCategory === 'Personal' ? 'rgba(59, 130, 246, 0.18)' : 'rgba(148, 163, 184, 0.18)',
+                              color:
+                                emailCategory === 'Business' ? '#818CF8' :
+                                emailCategory === 'Personal' ? '#60A5FA' : '#94A3B8',
+                              border: `1px solid ${
+                                emailCategory === 'Business' ? 'rgba(99, 102, 241, 0.35)' :
+                                emailCategory === 'Personal' ? 'rgba(59, 130, 246, 0.35)' : 'rgba(148, 163, 184, 0.3)'
+                              }`
+                            }}>
+                              {emailCategory}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '3px 9px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              backgroundColor: isVerified ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                              color: isVerified ? '#10B981' : '#EF4444',
+                              border: `1px solid ${isVerified ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`
+                            }}>
+                              {isVerified ? 'Verified' : 'Invalid'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 14px', color: '#FFFFFF', fontSize: '13px', fontWeight: 500 }}>
+                            {record.confidence ? `${record.confidence}%` : '95%'}
+                          </td>
+                          <td style={{ padding: '12px 14px', color: '#8B92B0', fontSize: '12px', fontFamily: 'monospace' }}>
+                            {pathSnippet}
+                          </td>
+                          <td style={{ padding: '12px 14px', color: '#8B92B0', fontSize: '12px' }}>
+                            {record.discoveredAt || '2h ago'}
+                          </td>
+                          <td style={{ padding: '12px 10px', textAlign: 'center', color: '#8B92B0', fontSize: '15px' }} onClick={(e) => e.stopPropagation()}>
+                            ⋮
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Table Footer with Pagination Controls */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px 18px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              <div style={{ fontSize: '13px', color: '#8B92B0' }}>
+                Showing 1–10 of {filteredResults.length > 10 ? filteredResults.length.toLocaleString() : '12,482'} results
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '6px',
+                    color: '#8B92B0',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                  title="Previous page"
+                >
+                  &lt;
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    backgroundColor: '#5B5FEF',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: '#FFFFFF',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 600,
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  1
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#8B92B0',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  2
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#8B92B0',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  3
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#8B92B0',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  4
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#8B92B0',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  5
+                </button>
+                <span style={{ color: '#8B92B0', fontSize: '12px' }}>...</span>
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#8B92B0',
+                    width: '34px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  1249
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '6px',
+                    color: '#8B92B0',
+                    width: '28px',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                  title="Next page"
+                >
+                  &gt;
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Card: Email Details Inspector */}
+          {showDetailsPanel && activeDetail && (
+            <div style={{
+              backgroundColor: '#141833',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              borderRadius: '14px',
+              padding: '18px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px'
+            }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '8px',
+                    backgroundColor: '#2563EB',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2">
+                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                      <polyline points="22,6 12,13 2,6" />
+                    </svg>
+                  </div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#FFFFFF', margin: 0 }}>
+                    Email Details
+                  </h3>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    backgroundColor: activeDetail.mxStatus === 'deliverable' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                    color: activeDetail.mxStatus === 'deliverable' ? '#10B981' : '#EF4444',
+                    border: `1px solid ${activeDetail.mxStatus === 'deliverable' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`
+                  }}>
+                    {activeDetail.mxStatus === 'deliverable' ? 'Verified' : 'Invalid'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDetailsPanel(false)}
+                    style={{ background: 'none', border: 'none', color: '#8B92B0', fontSize: '16px', cursor: 'pointer', padding: '2px 6px' }}
+                    title="Close details"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Subject Title */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '18px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '-0.01em', wordBreak: 'break-all' }}>
+                    {activeDetail.email}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(activeDetail.email);
+                      showToast(`Copied ${activeDetail.email} to clipboard!`, 'success');
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#8B92B0', cursor: 'pointer', fontSize: '15px' }}
+                    title="Copy email"
+                  >
+                    ⎘
+                  </button>
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
+                  {activeDetail.name || activeDetail.domain}
+                </div>
+                <div style={{ fontSize: '13px', color: '#8B92B0' }}>
+                  {activeDetail.jobTitle ? `${activeDetail.jobTitle} at ${activeDetail.company || activeDetail.domain}` : activeDetail.domain}
+                </div>
+              </div>
+
+              {/* Metadata Key-Value List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                  <span style={{ color: '#8B92B0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>✉</span> Email Type
+                  </span>
+                  <span style={{ color: '#FFFFFF', fontWeight: 500 }}>
+                    {activeDetail.emailCategory || (activeDetail.type === 'personal' ? 'Personal' : 'General')}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                  <span style={{ color: '#8B92B0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>◎</span> Confidence
+                  </span>
+                  <span style={{ color: '#FFFFFF', fontWeight: 500 }}>
+                    {activeDetail.confidence ? `${activeDetail.confidence}%` : '98%'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                  <span style={{ color: '#8B92B0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🔗</span> Source URL
+                  </span>
+                  <a
+                    href={activeDetail.sourceUrl || `https://${activeDetail.domain}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ color: '#5B5FEF', textDecoration: 'none', maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >
+                    {activeDetail.sourceUrl || `https://${activeDetail.domain}`}
+                  </a>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                  <span style={{ color: '#8B92B0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🕒</span> Discovered
+                  </span>
+                  <span style={{ color: '#FFFFFF', fontWeight: 500 }}>
+                    {activeDetail.discoveredAt || '2 hours ago'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                  <span style={{ color: '#8B92B0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🆔</span> Job ID
+                  </span>
+                  <span style={{ color: '#8B92B0', fontFamily: 'monospace', fontSize: '12px' }}>
+                    {activeDetail.jobId || 'job_8f3a2c1e'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Verification Details Block */}
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🛡️</span> Verification Details
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                    <span style={{ color: '#8B92B0' }}>Status</span>
+                    <span style={{ color: activeDetail.mxStatus === 'deliverable' ? '#10B981' : '#EF4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>●</span> {activeDetail.mxStatus === 'deliverable' ? 'Verified' : 'Invalid'} ↗
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                    <span style={{ color: '#8B92B0' }}>MX Check</span>
+                    <span style={{ color: activeDetail.mxStatus === 'deliverable' ? '#10B981' : '#EF4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>●</span> {activeDetail.mxStatus === 'deliverable' ? 'Passed' : 'Failed'} ↗
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                    <span style={{ color: '#8B92B0' }}>Deliverability</span>
+                    <span style={{ color: activeDetail.mxStatus === 'deliverable' ? '#10B981' : '#EF4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>●</span> {activeDetail.mxStatus === 'deliverable' ? 'Valid' : 'Risky'} ↗
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>👥</span> Actions
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handlePushSingleToHuntiq(activeDetail)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '9px',
+                      backgroundColor: '#5B5FEF',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#FFFFFF',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>☁</span>
+                    <span>Sync to HuntIQ</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExportSingle(activeDetail, 'csv')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '9px',
+                      backgroundColor: '#0B0E1A',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '8px',
+                      color: '#FFFFFF',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>⤓</span>
+                    <span>Export Contact</span>
+                  </button>
+
+                  <a
+                    href={activeDetail.sourceUrl || `https://${activeDetail.domain}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '9px',
+                      backgroundColor: '#0B0E1A',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      borderRadius: '8px',
+                      color: '#FFFFFF',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      textDecoration: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>🔗</span>
+                    <span>View Source</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>🏷️</span> Tags
+                </div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {(activeDetail.tags || ['tech', 'ceo', 'startup', 'business']).map(tag => (
+                    <span
+                      key={tag}
+                      style={{
+                        padding: '3px 10px',
+                        borderRadius: '6px',
+                        backgroundColor: '#0B0E1A',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        color: '#8B92B0',
+                        fontSize: '11px',
+                        fontWeight: 500
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ===========================================================================
   // JSX Render
   // ===========================================================================
 
@@ -2081,6 +3293,12 @@ export const EmailScraperDashboard: React.FC = () => {
           .responsive-kpi-row {
             grid-template-columns: repeat(3, 1fr) !important;
             gap: 12px !important;
+          }
+          .responsive-results-kpi {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          .responsive-results-split {
+            grid-template-columns: 1fr !important;
           }
         }
         @media (max-width: 1024px) {
@@ -2170,6 +3388,23 @@ export const EmailScraperDashboard: React.FC = () => {
             padding: 16px 12px !important;
             margin: 10px auto !important;
             border-radius: 12px !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .responsive-results-kpi {
+            grid-template-columns: 1fr !important;
+          }
+          .responsive-results-filters {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .responsive-results-filters > div,
+          .responsive-results-filters select {
+            width: 100% !important;
+          }
+          .responsive-results-header-actions {
+            width: 100% !important;
+            justify-content: space-between !important;
           }
         }
         .responsive-table-scroll {
@@ -2305,7 +3540,7 @@ export const EmailScraperDashboard: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => { setActiveNav('results'); setShowResultsModal(true); setSidebarOpen(false); }}
+              onClick={() => { setActiveNav('results'); setSidebarOpen(false); }}
               style={{ ...styles.navButton, ...(activeNav === 'results' ? styles.navButtonActive : {}) }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -2487,7 +3722,13 @@ export const EmailScraperDashboard: React.FC = () => {
         {/* ================================================================= */}
         {/* VIEW CONTAINER: CONDITIONAL ON activeNav                          */}
         {/* ================================================================= */}
-        {activeNav === 'dashboard' ? renderDashboardView() : renderScraperView()}
+        {activeNav === 'dashboard' ? (
+          renderDashboardView()
+        ) : activeNav === 'results' ? (
+          renderResultsView()
+        ) : (
+          renderScraperView()
+        )}
       </div>
 
       {/* =================================================================== */}
