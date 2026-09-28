@@ -77,6 +77,37 @@ async function runServerTests() {
       await fetch(`http://localhost:3001/api/scrape/crawl/cancel/${crawlData.jobId}`, { method: 'POST' });
     }
 
+    // 7. Import Pre-Compiled Email List API
+    console.log('7. Testing POST /api/import (Pre-compiled CSV)...');
+    const importCsv = `email,name,company
+contact@cloudflare.com,Cloudflare Desk,Cloudflare
+marcus@techcorp.io,Marcus Vance,TechCorp`;
+    const importRes = await fetch('http://localhost:3001/api/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: importCsv, verifyNow: true })
+    });
+    const importData = await importRes.json();
+    console.assert(importData.success === true, 'Import should succeed');
+    console.assert(importData.count === 2, `Should import 2 records, got ${importData.count}`);
+    console.assert(importData.verified === true, 'Import should be verified when verifyNow=true');
+    console.assert(importData.deliverableCount > 0, 'Should have deliverable emails');
+    console.log(`   ✓ Import API parsed and verified ${importData.count} emails: ${importData.deliverableCount} deliverable.`);
+
+    // 8. Verify Deliverability API
+    console.log('8. Testing POST /api/verify/mx with emails list...');
+    const verifyRes = await fetch('http://localhost:3001/api/verify/mx', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emails: ['support@google.com', 'baduser@mailinator.com'] })
+    });
+    const verifyData = await verifyRes.json();
+    console.assert(verifyData.success === true, 'Verify API should succeed');
+    console.assert(verifyData.records.length === 2, 'Should verify 2 records');
+    console.assert(verifyData.deliverableCount >= 1, 'Google should be deliverable');
+    console.assert(verifyData.disposableCount >= 1, 'Mailinator should be disposable');
+    console.log(`   ✓ Verify API accurately confirmed: ${verifyData.deliverableCount} deliverable, ${verifyData.disposableCount} disposable.`);
+
     console.log('\n🌟 All Server & API integration tests succeeded flawlessly!');
   } finally {
     server.close();

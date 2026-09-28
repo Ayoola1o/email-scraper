@@ -24,6 +24,13 @@ export {
 } from './utils/verifier';
 
 export {
+  parseEmailList,
+  type ImportOptions,
+  type ParsedImportResult,
+  type SyntaxErrorInfo
+} from './utils/importer';
+
+export {
   scrapeEmailsFromUrl,
   scrapeEmailRecordsFromUrl,
   type HttpScraperOptions

@@ -31,7 +31,7 @@ export interface ScrapedEmailRecord {
     github?: string;
   };
   /** Live MX record deliverability status */
-  mxStatus?: 'deliverable' | 'undeliverable' | 'disposable' | 'unverified';
+  mxStatus?: 'deliverable' | 'undeliverable' | 'disposable' | 'unverified' | 'pending' | 'risky';
   /** Resolved MX mail exchange servers */
   mxRecords?: string[];
   /** Validation and metadata flags */
@@ -40,6 +40,16 @@ export interface ScrapedEmailRecord {
     tld: boolean;
     isDisposable: boolean;
   };
+  /** Associated company or organization name */
+  company?: string;
+  /** Categorization: Business, Personal, or General */
+  emailCategory?: 'Business' | 'Personal' | 'General';
+  /** Scrape or Import Job ID */
+  jobId?: string;
+  /** Custom organizational tags */
+  tags?: string[];
+  /** Calculated accuracy / discovery confidence percentage */
+  confidence?: number;
 }
 
 /**

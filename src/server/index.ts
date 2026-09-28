@@ -816,31 +816,142 @@ app.delete('/api/folders/:folderId/records/:email', (req: Request, res: Response
 });
 
 /* ========================================================================= */
-/* Deliverability & Live MX Verification Endpoint                           */
+/* Deliverability & Live MX Verification & Import Endpoints                */
 /* ========================================================================= */
 
 import { verifyEmailRecords } from '../utils/verifier';
+import { parseEmailList } from '../utils/importer';
 
 /**
- * Verifies live MX records and deliverability for a list of records
+ * Common verification handler supporting both { records: [...] } and { emails: [...] }
  */
-app.post('/api/verify', async (req: Request, res: Response) => {
+async function handleVerificationRequest(req: Request, res: Response) {
   try {
-    const { records } = req.body;
-    if (!Array.isArray(records) || records.length === 0) {
-      return res.status(400).json({ error: 'Records array is required' });
+    const { records, emails } = req.body;
+    let targetRecords: ScrapedEmailRecord[] = [];
+
+    if (Array.isArray(records) && records.length > 0) {
+      targetRecords = records.map(r => {
+        if (typeof r === 'string') {
+          const parsed = parseEmailList(r);
+          return parsed.records[0] || null;
+        }
+        return r;
+      }).filter(Boolean);
+    } else if (Array.isArray(emails) && emails.length > 0) {
+      const parsed = parseEmailList(emails.join('\n'));
+      targetRecords = parsed.records;
+    } else {
+      return res.status(400).json({ error: 'Valid records or emails array is required' });
     }
 
-    const verified = await verifyEmailRecords(records);
-    res.json({
+    if (targetRecords.length === 0) {
+      return res.status(400).json({ error: 'No valid email records to verify' });
+    }
+
+    if (targetRecords.length > 5000) {
+      return res.status(400).json({ error: 'Cannot verify more than 5,000 records at once' });
+    }
+
+    const verified = await verifyEmailRecords(targetRecords);
+    const deliverableCount = verified.filter(r => r.mxStatus === 'deliverable').length;
+    const undeliverableCount = verified.filter(r => r.mxStatus === 'undeliverable').length;
+    const disposableCount = verified.filter(r => r.mxStatus === 'disposable').length;
+
+    return res.json({
       success: true,
       records: verified,
-      deliverableCount: verified.filter(r => r.mxStatus === 'deliverable').length,
-      undeliverableCount: verified.filter(r => r.mxStatus === 'undeliverable').length,
-      disposableCount: verified.filter(r => r.mxStatus === 'disposable').length
+      results: verified, // Compatibility alias for frontend components
+      totalCount: verified.length,
+      deliverableCount,
+      undeliverableCount,
+      disposableCount
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+/**
+ * Verifies live MX records and deliverability for a list of records or emails
+ */
+app.post('/api/verify', handleVerificationRequest);
+app.post('/api/verify/mx', handleVerificationRequest);
+
+/**
+ * Imports pre-compiled email lists (CSV, TSV, JSON, or Plaintext)
+ * with optional instant live MX deliverability verification
+ */
+app.post('/api/import', async (req: Request, res: Response) => {
+  try {
+    const {
+      text,
+      records: inputRecords,
+      verifyNow = false,
+      sourceName = 'Imported List',
+      defaultCompany,
+      jobId
+    } = req.body;
+
+    let parsedResult;
+
+    if (typeof text === 'string' && text.trim()) {
+      if (text.length > 10 * 1024 * 1024) {
+        return res.status(400).json({ error: 'Import file size exceeds 10MB limit' });
+      }
+      parsedResult = parseEmailList(text, {
+        sourceName,
+        defaultCompany,
+        jobId: jobId || `import_${Date.now().toString(36)}`
+      });
+    } else if (Array.isArray(inputRecords) && inputRecords.length > 0) {
+      parsedResult = {
+        records: inputRecords,
+        totalRowsProcessed: inputRecords.length,
+        validCount: inputRecords.length,
+        invalidCount: 0,
+        duplicateCount: 0,
+        syntaxErrors: [],
+        detectedColumns: ['email'],
+        detectedFormat: 'json' as const
+      };
+    } else {
+      return res.status(400).json({ error: 'Text content or records array is required for import' });
+    }
+
+    let finalRecords = parsedResult.records;
+
+    if (verifyNow && finalRecords.length > 0) {
+      // Run live MX deliverability verification
+      finalRecords = await verifyEmailRecords(finalRecords);
+    }
+
+    const deliverableCount = finalRecords.filter(r => r.mxStatus === 'deliverable').length;
+    const undeliverableCount = finalRecords.filter(r => r.mxStatus === 'undeliverable').length;
+    const disposableCount = finalRecords.filter(r => r.mxStatus === 'disposable').length;
+    const pendingCount = finalRecords.filter(r => !r.mxStatus || r.mxStatus === 'pending').length;
+
+    return res.json({
+      success: true,
+      verified: Boolean(verifyNow),
+      count: finalRecords.length,
+      records: finalRecords,
+      deliverableCount,
+      undeliverableCount,
+      disposableCount,
+      pendingCount,
+      summary: {
+        totalRowsProcessed: parsedResult.totalRowsProcessed,
+        validCount: parsedResult.validCount,
+        invalidCount: parsedResult.invalidCount,
+        duplicateCount: parsedResult.duplicateCount,
+        detectedFormat: parsedResult.detectedFormat,
+        detectedColumns: parsedResult.detectedColumns,
+        syntaxErrors: parsedResult.syntaxErrors.slice(0, 10)
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

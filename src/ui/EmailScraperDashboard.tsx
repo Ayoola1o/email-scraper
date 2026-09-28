@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { parseEmailList, ParsedImportResult } from '../utils/importer';
 
 // =============================================================================
 // TypeScript Interfaces & Data Contracts (Preserved Exactly)
 // =============================================================================
 
-export type NavSection = 'dashboard' | 'scraper' | 'results' | 'history' | 'huntiq' | 'settings';
-export type ScrapeMode = 'single' | 'domain' | 'batch' | 'text';
+export type NavSection = 'dashboard' | 'scraper' | 'import' | 'results' | 'history' | 'huntiq' | 'settings';
+export type ScrapeMode = 'single' | 'domain' | 'batch' | 'import' | 'text';
 export type JobStatus = 'Completed' | 'Running' | 'Failed' | 'Cancelled';
 export type EmailType = 'personal' | 'role' | 'unknown';
 export type MxStatus = 'deliverable' | 'undeliverable' | 'risky' | 'disposable' | 'pending';
@@ -312,9 +313,194 @@ export const EmailScraperDashboard: React.FC = () => {
   const [showTextModal, setShowTextModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [rawTextInput, setRawTextInput] = useState('');
   const [isSyncingHuntiq, setIsSyncingHuntiq] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // Import Email List & Verification State
+  const [importRawText, setImportRawText] = useState('');
+  const [importFileName, setImportFileName] = useState('');
+  const [importVerifyImmediately, setImportVerifyImmediately] = useState(true);
+  const [importQuarantineInvalid, setImportQuarantineInvalid] = useState(false);
+  const [importDefaultCompany, setImportDefaultCompany] = useState('');
+  const [importTab, setImportTab] = useState<'upload' | 'paste' | 'samples'>('paste');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{
+    step: string;
+    percent: number;
+    deliverable: number;
+    undeliverable: number;
+    disposable: number;
+  } | null>(null);
+  const [importLastSummary, setImportLastSummary] = useState<any>(null);
+
+  // High-fidelity pre-compiled sample lists for instant 1-click testing
+  const SAMPLE_CSV_DATA = `Email,Full Name,Company,Job Title,Phone
+alex.smith@cloudflare.com,"Smith, Alex",Cloudflare,VP Engineering,+1 (415) 555-0199
+elena.rostova@google.com,Dr. Elena Rostova,Google,Director of AI,+1 (800) 555-0100
+marcus.vance@techcorp.io,Marcus Vance,TechCorp,Chief Technology Officer,+1 (650) 555-0142
+sales@stripe.com,Stripe Commercial,Stripe,Commercial Director,+1 (888) 555-0123
+temp.tester@mailinator.com,Test Account,Temp QA,Quality Assurance,
+dead.mailbox@thishostnamedefinitelydoesnotexist991823.xyz,Unknown User,Ghost Corp,Consultant,
+invalid-email-missing-domain@,Bad Entry,None,Invalid,
+`;
+
+  const SAMPLE_PLAIN_DATA = `contact@cloudflare.com
+marcus.vance@techcorp.io
+support@google.com
+disposable.user@mailinator.com
+unreachable@fakeinvalidhost982348.com
+`;
+
+  const SAMPLE_JSON_DATA = JSON.stringify([
+    { email: 'alex.smith@cloudflare.com', name: 'Alex Smith', company: 'Cloudflare', jobTitle: 'VP Engineering' },
+    { email: 'elena.rostova@google.com', name: 'Dr. Elena Rostova', company: 'Google', jobTitle: 'Director of AI' },
+    { email: 'disposable@mailinator.com', name: 'Temp Tester', company: 'Disposable Test', jobTitle: 'QA Lead' },
+    { email: 'dead@thishostnamedefinitelydoesnotexist991823.xyz', name: 'Dead Domain', company: 'Fake Host', jobTitle: 'None' }
+  ], null, 2);
+
+  // Memoized Live Parsing Preview for Imported Text
+  const parsedImportPreview: ParsedImportResult = useMemo(() => {
+    if (!importRawText.trim()) {
+      return {
+        records: [],
+        totalRowsProcessed: 0,
+        validCount: 0,
+        invalidCount: 0,
+        duplicateCount: 0,
+        syntaxErrors: [],
+        detectedColumns: [],
+        detectedFormat: 'plaintext'
+      };
+    }
+    return parseEmailList(importRawText, {
+      defaultCompany: importDefaultCompany.trim() || undefined,
+      sourceName: importFileName || 'Imported List'
+    });
+  }, [importRawText, importDefaultCompany, importFileName]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = String(event.target?.result || '');
+      setImportRawText(content);
+      showToast(`Loaded ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDropFile = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    setImportFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = String(event.target?.result || '');
+      setImportRawText(content);
+      showToast(`Dropped & loaded ${file.name}`, 'info');
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExecuteImport = async (verifyNow: boolean) => {
+    if (!importRawText.trim()) {
+      showToast('Please upload a file or paste your email list first.', 'error');
+      return;
+    }
+
+    if (parsedImportPreview.validCount === 0) {
+      showToast('No valid email addresses found in input.', 'error');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportProgress({
+      step: verifyNow ? 'Validating syntax and resolving live MX mail servers...' : 'Processing imported records...',
+      percent: 35,
+      deliverable: 0,
+      undeliverable: 0,
+      disposable: 0
+    });
+
+    try {
+      const res = await fetch('/api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: importRawText,
+          verifyNow,
+          sourceName: importFileName || 'Imported List',
+          defaultCompany: importDefaultCompany.trim() || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to import email list');
+      }
+
+      let finalRecords: ScrapedEmailRecord[] = data.records || [];
+
+      if (importQuarantineInvalid) {
+        finalRecords = finalRecords.filter(r => r.mxStatus === 'deliverable' || r.mxStatus === 'pending');
+      }
+
+      setImportProgress({
+        step: 'Import completed successfully!',
+        percent: 100,
+        deliverable: data.deliverableCount || 0,
+        undeliverable: data.undeliverableCount || 0,
+        disposable: data.disposableCount || 0
+      });
+
+      // Merge records into active dataset
+      mergeRecords(finalRecords);
+
+      const jobEntryId = `import_${Date.now()}`;
+      setRecentJobs(prev => [
+        {
+          id: jobEntryId,
+          name: importFileName ? `Import: ${importFileName}` : `Imported List (${finalRecords.length})`,
+          type: 'Batch',
+          target: `${data.summary?.totalRowsProcessed || finalRecords.length} Rows`,
+          status: 'Completed',
+          emailsFound: finalRecords.length,
+          started: 'Just now'
+        },
+        ...prev
+      ]);
+
+      setActivities(prev => [
+        {
+          id: Date.now().toString(),
+          time: getFormattedTime(),
+          status: 'Completed',
+          detail: `Imported ${finalRecords.length} contacts (${data.deliverableCount || 0} deliverable, ${data.undeliverableCount || 0} undeliverable)`
+        },
+        ...prev.slice(0, 9)
+      ]);
+
+      setImportLastSummary(data);
+
+      if (verifyNow) {
+        showToast(
+          `Imported & verified ${finalRecords.length} contacts: ${data.deliverableCount} deliverable, ${data.undeliverableCount} undeliverable, ${data.disposableCount} disposable!`,
+          'success'
+        );
+      } else {
+        showToast(`Imported ${finalRecords.length} contacts successfully!`, 'success');
+      }
+    } catch (err: any) {
+      showToast(`Import error: ${err.message}`, 'error');
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   // Activity & Recent Jobs
   const [recentJobs, setRecentJobs] = useState<RecentJobItem[]>([]);
@@ -1958,10 +2144,22 @@ export const EmailScraperDashboard: React.FC = () => {
             >
               Batch
             </button>
+            <button
+              type="button"
+              onClick={() => setScrapeMode('import')}
+              style={{ ...styles.scrapeTabBtn, ...(scrapeMode === 'import' ? styles.scrapeTabBtnActive : {}) }}
+            >
+              📥 Import List
+            </button>
           </div>
 
-          {/* Website URL Input Form */}
-          <form onSubmit={handleStartScrape} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {scrapeMode === 'import' ? (
+            <div style={{ marginTop: '10px' }}>
+              {renderImportContent(false)}
+            </div>
+          ) : (
+            /* Website URL Input Form */
+            <form onSubmit={handleStartScrape} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <label style={styles.fieldLabel}>Website URL</label>
@@ -2131,6 +2329,7 @@ export const EmailScraperDashboard: React.FC = () => {
               </button>
             )}
           </form>
+          )}
         </div>
 
         {/* RECENT JOBS TABLE CARD */}
@@ -2407,7 +2606,7 @@ export const EmailScraperDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="responsive-results-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="responsive-results-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <button
               type="button"
               style={{
@@ -2428,6 +2627,79 @@ export const EmailScraperDashboard: React.FC = () => {
               <span>📅</span>
               <span>{resultsDateRange}</span>
               <span style={{ fontSize: '10px', color: '#8B92B0' }}>▼</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px 15px',
+                backgroundColor: '#1E293B',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '8px',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Import pre-compiled CSV, TXT, or JSON email lists"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span>Import List</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleVerifyDeliverability(records)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                backgroundColor: '#141833',
+                border: '1px solid rgba(91, 95, 239, 0.3)',
+                borderRadius: '8px',
+                color: '#818CF8',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Run live MX DNS checks on all unverified contacts"
+            >
+              <span>⚡</span>
+              <span>Verify Deliverability</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleQuarantineInvalid}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 12px',
+                backgroundColor: '#141833',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                borderRadius: '8px',
+                color: '#F87171',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Archive undeliverable and disposable emails to quarantine"
+            >
+              <span>🛡️</span>
+              <span>Quarantine Bad</span>
             </button>
 
             <button
@@ -3281,6 +3553,793 @@ export const EmailScraperDashboard: React.FC = () => {
     );
   };
 
+  // ---------------------------------------------------------------------------
+  // Dedicated Import & Deliverability Verification View & Modal Content
+  // ---------------------------------------------------------------------------
+  const renderImportContent = (isModal: boolean) => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Top Header Card (shown in full-page view) */}
+        {!isModal && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '50%',
+                backgroundColor: '#2563EB',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
+                flexShrink: 0
+              }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <div>
+                <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#FFFFFF', margin: 0, letterSpacing: '-0.02em' }}>
+                  Import & Verify Email List
+                </h1>
+                <p style={{ fontSize: '14px', color: '#8B92B0', margin: '4px 0 0 0' }}>
+                  Import pre-compiled lead lists (CSV, TXT, JSON), detect syntax issues, and verify live MX deliverability.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setImportRawText(SAMPLE_CSV_DATA);
+                  setImportTab('paste');
+                  setImportFileName('sample_b2b_leads.csv');
+                  showToast('Loaded sample B2B list with mixed deliverability!', 'info');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  backgroundColor: '#141833',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '8px',
+                  color: '#FFFFFF',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: 'pointer'
+                }}
+              >
+                <span>🧪</span>
+                <span>Load Sample Leads</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveNav('results')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  backgroundColor: '#5B5FEF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#FFFFFF',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(91, 95, 239, 0.35)'
+                }}
+              >
+                <span>View Discovered Contacts ({records.length})</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 4 Summary Cards: Real-time Live Counters */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+          <div style={styles.cardContainer}>
+            <div style={{ fontSize: '12px', color: '#8B92B0', fontWeight: 500, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>📄</span> Total Lines / Rows
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: '#FFFFFF' }}>
+              {parsedImportPreview.totalRowsProcessed.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#8B92B0', marginTop: '4px' }}>
+              Detected format: <strong style={{ color: '#818CF8' }}>{parsedImportPreview.detectedFormat.toUpperCase()}</strong>
+            </div>
+          </div>
+
+          <div style={styles.cardContainer}>
+            <div style={{ fontSize: '12px', color: '#10B981', fontWeight: 500, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>✅</span> Valid Email Syntax
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: '#10B981' }}>
+              {parsedImportPreview.validCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#8B92B0', marginTop: '4px' }}>
+              Compliant RFC-5322 & valid TLD
+            </div>
+          </div>
+
+          <div style={styles.cardContainer}>
+            <div style={{ fontSize: '12px', color: '#F59E0B', fontWeight: 500, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>⚠️</span> Duplicates Excluded
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: '#F59E0B' }}>
+              {parsedImportPreview.duplicateCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#8B92B0', marginTop: '4px' }}>
+              De-duplicated within batch
+            </div>
+          </div>
+
+          <div style={styles.cardContainer}>
+            <div style={{ fontSize: '12px', color: '#EF4444', fontWeight: 500, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>❌</span> Syntax / Format Rejected
+            </div>
+            <div style={{ fontSize: '26px', fontWeight: 700, color: '#EF4444' }}>
+              {parsedImportPreview.invalidCount.toLocaleString()}
+            </div>
+            <div style={{ fontSize: '11px', color: '#8B92B0', marginTop: '4px' }}>
+              Malformed email strings filtered out
+            </div>
+          </div>
+        </div>
+
+        {/* Main Input Configuration Card */}
+        <div style={{
+          backgroundColor: '#141833',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '14px',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '18px'
+        }}>
+          {/* Sub-Tabs: Upload vs Paste vs Sample */}
+          <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setImportTab('upload')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                backgroundColor: importTab === 'upload' ? '#2563EB' : 'transparent',
+                color: importTab === 'upload' ? '#FFFFFF' : '#8B92B0',
+                border: importTab === 'upload' ? 'none' : '1px solid rgba(255, 255, 255, 0.08)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>📁</span>
+              <span>Upload File (.csv, .txt, .json)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setImportTab('paste')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                backgroundColor: importTab === 'paste' ? '#2563EB' : 'transparent',
+                color: importTab === 'paste' ? '#FFFFFF' : '#8B92B0',
+                border: importTab === 'paste' ? 'none' : '1px solid rgba(255, 255, 255, 0.08)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>📋</span>
+              <span>Paste Email List</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setImportTab('samples')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                backgroundColor: importTab === 'samples' ? '#2563EB' : 'transparent',
+                color: importTab === 'samples' ? '#FFFFFF' : '#8B92B0',
+                border: importTab === 'samples' ? 'none' : '1px solid rgba(255, 255, 255, 0.08)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <span>🧪</span>
+              <span>Sample Datasets</span>
+            </button>
+          </div>
+
+          {/* TAB 1: UPLOAD FILE DROPZONE */}
+          {importTab === 'upload' && (
+            <div
+              onDragOver={e => e.preventDefault()}
+              onDrop={handleDropFile}
+              style={{
+                border: '2px dashed rgba(91, 95, 239, 0.35)',
+                borderRadius: '12px',
+                backgroundColor: '#0B0E1A',
+                padding: '36px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                cursor: 'pointer',
+                transition: 'border-color 0.2s ease',
+                position: 'relative'
+              }}
+              onClick={() => document.getElementById('file-upload-input')?.click()}
+            >
+              <input
+                id="file-upload-input"
+                type="file"
+                accept=".csv,.txt,.tsv,.json,text/csv,text/plain,application/json"
+                onChange={handleFileUpload}
+                style={{ display: 'none' }}
+              />
+              <div style={{
+                width: '54px',
+                height: '54px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(91, 95, 239, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '14px',
+                color: '#818CF8'
+              }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <div style={{ fontSize: '16px', fontWeight: 600, color: '#FFFFFF', marginBottom: '6px' }}>
+                {importFileName ? `Selected: ${importFileName}` : 'Choose an email list file or drag & drop here'}
+              </div>
+              <p style={{ fontSize: '13px', color: '#8B92B0', margin: 0, maxWidth: '420px' }}>
+                Supports standard CSV spreadsheets (with columns for Name, Company, Title), TXT (one email per line), or JSON arrays.
+              </p>
+              {importFileName && (
+                <div style={{ marginTop: '14px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', color: '#10B981', fontWeight: 600, backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '4px 10px', borderRadius: '6px' }}>
+                    ✓ Ready to parse ({parsedImportPreview.validCount} valid contacts detected)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setImportFileName('');
+                      setImportRawText('');
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '12px', cursor: 'pointer', fontWeight: 500 }}
+                  >
+                    Clear file
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: PASTE TEXT */}
+          {importTab === 'paste' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>
+                  Paste CSV Lines, JSON, or Plain Emails
+                </label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {importRawText && (
+                    <button
+                      type="button"
+                      onClick={() => setImportRawText('')}
+                      style={{ background: 'none', border: 'none', color: '#8B92B0', fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      ✕ Clear Text
+                    </button>
+                  )}
+                </div>
+              </div>
+              <textarea
+                value={importRawText}
+                onChange={e => setImportRawText(e.target.value)}
+                placeholder={`Example CSV with headers:\nEmail,Full Name,Company,Job Title\nalex.smith@cloudflare.com,Alex Smith,Cloudflare,VP Engineering\nelena.rostova@google.com,Dr. Elena Rostova,Google,Director of AI\n\nOr plain email addresses (one per line):\njohn.doe@company.com\nsarah.connor@sky.net\nsupport@stripe.com`}
+                rows={8}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  backgroundColor: '#0B0E1A',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '10px',
+                  color: '#FFFFFF',
+                  fontFamily: 'JetBrains Mono, monospace, sans-serif',
+                  fontSize: '13px',
+                  lineHeight: '1.6',
+                  outline: 'none',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          )}
+
+          {/* TAB 3: SAMPLE DATASETS */}
+          {importTab === 'samples' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+              <div
+                style={{
+                  backgroundColor: '#0B0E1A',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '10px',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>🏢</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>B2B Leads (Mixed Statuses)</span>
+                </div>
+                <p style={{ fontSize: '12px', color: '#8B92B0', margin: 0, flex: 1 }}>
+                  Contains real live domains (Cloudflare, Google, Stripe), disposable mailboxes (Mailinator), a non-existent fake domain, and invalid syntax to demo live deliverability checks.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportRawText(SAMPLE_CSV_DATA);
+                    setImportFileName('b2b_mixed_leads.csv');
+                    setImportTab('paste');
+                    showToast('Loaded B2B Leads dataset!', 'info');
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#2563EB',
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: '#FFFFFF',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Load This Dataset →
+                </button>
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: '#0B0E1A',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '10px',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>📝</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>Plain Email List</span>
+                </div>
+                <p style={{ fontSize: '12px', color: '#8B92B0', margin: 0, flex: 1 }}>
+                  Raw email addresses without headers. Automatically tests automatic name inference and domain categorizations.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportRawText(SAMPLE_PLAIN_DATA);
+                    setImportFileName('plain_emails.txt');
+                    setImportTab('paste');
+                    showToast('Loaded Plain Emails dataset!', 'info');
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#1E293B',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '6px',
+                    color: '#FFFFFF',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Load This Dataset →
+                </button>
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: '#0B0E1A',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '10px',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>⚡</span>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>JSON Contacts Array</span>
+                </div>
+                <p style={{ fontSize: '12px', color: '#8B92B0', margin: 0, flex: 1 }}>
+                  Structured JSON contacts with full metadata (name, company, title) for API-style bulk importing.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportRawText(SAMPLE_JSON_DATA);
+                    setImportFileName('contacts_export.json');
+                    setImportTab('paste');
+                    showToast('Loaded JSON contacts dataset!', 'info');
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    backgroundColor: '#1E293B',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '6px',
+                    color: '#FFFFFF',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Load This Dataset →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Options & Controls Bar */}
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '14px',
+            backgroundColor: '#0B0E1A',
+            padding: '14px',
+            borderRadius: '10px',
+            border: '1px solid rgba(255, 255, 255, 0.06)'
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#FFFFFF', cursor: 'pointer', fontWeight: 500 }}>
+                <input
+                  type="checkbox"
+                  checked={importVerifyImmediately}
+                  onChange={e => setImportVerifyImmediately(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: '#5B5FEF', cursor: 'pointer' }}
+                />
+                <span>⚡ Verify Deliverability (Live MX Check via DNS-over-HTTPS)</span>
+                <span style={{ fontSize: '10px', color: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>RECOMMENDED</span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#8B92B0', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={importQuarantineInvalid}
+                  onChange={e => setImportQuarantineInvalid(e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: '#EF4444', cursor: 'pointer' }}
+                />
+                <span>🛡️ Automatically exclude undeliverable & dead inboxes from imported records</span>
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <input
+                type="text"
+                placeholder="Default Company (optional)"
+                value={importDefaultCompany}
+                onChange={e => setImportDefaultCompany(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  backgroundColor: '#141833',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '6px',
+                  color: '#FFFFFF',
+                  fontSize: '12px',
+                  outline: 'none'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Live Parsing Preview Table (if records found) */}
+          {parsedImportPreview.records.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>📋 Parsed Preview</span>
+                  <span style={{ fontSize: '12px', color: '#8B92B0', fontWeight: 400 }}>
+                    (Showing first {Math.min(10, parsedImportPreview.records.length)} of {parsedImportPreview.records.length} parsed contacts)
+                  </span>
+                </div>
+                {parsedImportPreview.detectedColumns.length > 0 && (
+                  <span style={{ fontSize: '11px', color: '#818CF8', backgroundColor: 'rgba(91, 95, 239, 0.15)', padding: '2px 8px', borderRadius: '4px' }}>
+                    Columns: {parsedImportPreview.detectedColumns.slice(0, 4).join(', ')}
+                  </span>
+                )}
+              </div>
+
+              <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#0B0E1A', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', color: '#8B92B0' }}>
+                      <th style={{ padding: '10px 12px' }}>Email</th>
+                      <th style={{ padding: '10px 12px' }}>Name</th>
+                      <th style={{ padding: '10px 12px' }}>Company</th>
+                      <th style={{ padding: '10px 12px' }}>Job Title</th>
+                      <th style={{ padding: '10px 12px' }}>Type</th>
+                      <th style={{ padding: '10px 12px' }}>Category</th>
+                      <th style={{ padding: '10px 12px' }}>Syntax</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedImportPreview.records.slice(0, 10).map((r, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', backgroundColor: i % 2 === 0 ? '#141833' : '#11142B' }}>
+                        <td style={{ padding: '10px 12px', fontWeight: 600, color: '#FFFFFF' }}>{r.email}</td>
+                        <td style={{ padding: '10px 12px', color: r.name ? '#FFFFFF' : '#64748B' }}>{r.name || '—'}</td>
+                        <td style={{ padding: '10px 12px', color: r.company ? '#FFFFFF' : '#64748B' }}>{r.company || '—'}</td>
+                        <td style={{ padding: '10px 12px', color: r.jobTitle ? '#FFFFFF' : '#64748B' }}>{r.jobTitle || '—'}</td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            backgroundColor: r.type === 'personal' ? 'rgba(37, 99, 235, 0.15)' : 'rgba(217, 119, 6, 0.15)',
+                            color: r.type === 'personal' ? '#60A5FA' : '#FBBF24'
+                          }}>
+                            {r.type}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', color: '#8B92B0' }}>{r.emailCategory || 'General'}</td>
+                        <td style={{ padding: '10px 12px', color: '#10B981', fontWeight: 600 }}>✓ Valid</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Syntax Rejections warning if any */}
+          {parsedImportPreview.syntaxErrors.length > 0 && (
+            <div style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#F87171', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>⚠️</span>
+                <span>{parsedImportPreview.syntaxErrors.length} malformed entries skipped automatically:</span>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: '#FCA5A5' }}>
+                {parsedImportPreview.syntaxErrors.slice(0, 4).map((err, i) => (
+                  <li key={i}>
+                    Line {err.line}: <code>{err.raw}</code> ({err.reason})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Progress Bar during verification / import */}
+          {isImporting && importProgress && (
+            <div style={{
+              backgroundColor: '#0B0E1A',
+              border: '1px solid rgba(91, 95, 239, 0.3)',
+              borderRadius: '10px',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>{importProgress.step}</span>
+                <span style={{ fontSize: '12px', color: '#818CF8', fontWeight: 600 }}>{importProgress.percent}%</span>
+              </div>
+              <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${importProgress.percent}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #2563EB, #7C3AED)',
+                  transition: 'width 0.4s ease'
+                }} />
+              </div>
+            </div>
+          )}
+
+          {/* Post-Import Results Card if completed */}
+          {importLastSummary && (
+            <div style={{
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              borderRadius: '10px',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                <div>
+                  <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
+                    🎉 Import & Deliverability Verification Complete!
+                  </h4>
+                  <p style={{ fontSize: '13px', color: '#8B92B0', margin: '4px 0 0 0' }}>
+                    Successfully imported {importLastSummary.count} contacts into your workspace.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isModal) setShowImportModal(false);
+                      setActiveNav('results');
+                    }}
+                    style={{
+                      padding: '8px 14px',
+                      backgroundColor: '#10B981',
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: '#FFFFFF',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    View in Results Table →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowExportModal(true)}
+                    style={{
+                      padding: '8px 14px',
+                      backgroundColor: '#141833',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '6px',
+                      color: '#FFFFFF',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Export
+                  </button>
+                </div>
+              </div>
+
+              {/* Status breakdown pills */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#34D399', fontWeight: 600 }}>
+                  ✓ {importLastSummary.deliverableCount} Deliverable
+                </span>
+                <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#FBBF24', fontWeight: 600 }}>
+                  ⚠ {importLastSummary.disposableCount} Disposable
+                </span>
+                <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#F87171', fontWeight: 600 }}>
+                  ✗ {importLastSummary.undeliverableCount} Undeliverable
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Action Execution Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+            {isModal && (
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                style={{
+                  padding: '10px 18px',
+                  backgroundColor: 'transparent',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '8px',
+                  color: '#8B92B0',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            )}
+
+            <button
+              type="button"
+              disabled={isImporting || parsedImportPreview.validCount === 0}
+              onClick={() => handleExecuteImport(false)}
+              style={{
+                padding: '10px 18px',
+                backgroundColor: '#1E293B',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '8px',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: (isImporting || parsedImportPreview.validCount === 0) ? 'not-allowed' : 'pointer',
+                opacity: (isImporting || parsedImportPreview.validCount === 0) ? 0.6 : 1
+              }}
+            >
+              Import Only ({parsedImportPreview.validCount})
+            </button>
+
+            <button
+              type="button"
+              disabled={isImporting || parsedImportPreview.validCount === 0}
+              onClick={() => handleExecuteImport(true)}
+              style={{
+                padding: '10px 22px',
+                backgroundColor: '#5B5FEF',
+                background: 'linear-gradient(135deg, #5B5FEF 0%, #2563EB 100%)',
+                border: 'none',
+                borderRadius: '8px',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: (isImporting || parsedImportPreview.validCount === 0) ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 16px rgba(91, 95, 239, 0.4)',
+                opacity: (isImporting || parsedImportPreview.validCount === 0) ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <span>⚡</span>
+              <span>{isImporting ? 'Verifying & Importing...' : `Import & Verify Deliverability (${parsedImportPreview.validCount})`}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderImportView = () => renderImportContent(false);
+
+  const renderImportModal = () => (
+    <div style={styles.modalOverlay}>
+      <div className="responsive-modal-large" style={{ ...styles.modalCardLarge, maxWidth: '920px' }}>
+        <div style={styles.modalHeader}>
+          <div>
+            <h3 style={styles.modalTitle}>Import & Verify Email List</h3>
+            <p style={styles.modalSubtitle}>Upload or paste your email contacts to validate syntax and verify live MX deliverability.</p>
+          </div>
+          <button onClick={() => setShowImportModal(false)} style={styles.modalCloseBtn}>✕</button>
+        </div>
+        <div style={{ padding: '20px', maxHeight: '75vh', overflowY: 'auto' }}>
+          {renderImportContent(true)}
+        </div>
+      </div>
+    </div>
+  );
+
   // ===========================================================================
   // JSX Render
   // ===========================================================================
@@ -3540,6 +4599,27 @@ export const EmailScraperDashboard: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => { setActiveNav('import'); setSidebarOpen(false); }}
+              style={{ ...styles.navButton, ...(activeNav === 'import' ? styles.navButtonActive : {}) }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span style={{ flex: 1 }}>Import & Verify</span>
+              <span style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                padding: '2px 6px',
+                borderRadius: '10px',
+                backgroundColor: '#2563EB',
+                color: '#FFFFFF'
+              }}>NEW</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => { setActiveNav('results'); setSidebarOpen(false); }}
               style={{ ...styles.navButton, ...(activeNav === 'results' ? styles.navButtonActive : {}) }}
             >
@@ -3726,6 +4806,8 @@ export const EmailScraperDashboard: React.FC = () => {
           renderDashboardView()
         ) : activeNav === 'results' ? (
           renderResultsView()
+        ) : activeNav === 'import' ? (
+          renderImportView()
         ) : (
           renderScraperView()
         )}
@@ -3734,6 +4816,9 @@ export const EmailScraperDashboard: React.FC = () => {
       {/* =================================================================== */}
       {/* 3. MODALS (RESTYLED WITH #141833 & INDIGO/PURPLE ACCENT)            */}
       {/* =================================================================== */}
+
+      {/* Import & Verify Modal */}
+      {showImportModal && renderImportModal()}
 
       {/* Results Modal */}
       {showResultsModal && (
