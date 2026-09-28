@@ -24,6 +24,21 @@ export {
 } from './utils/verifier';
 
 export {
+  validateEmailTwoLayer,
+  validateBulkEmailsTwoLayer,
+  runLayer1StaticValidation,
+  runLayer2MxVerification,
+  toCanonicalEmail,
+  suggestDomainTypo,
+  calculateShannonEntropy,
+  isGibberishUsername,
+  type Layer1ValidationResult,
+  type Layer2VerificationResult,
+  type MxEnrichmentBlock,
+  type TwoLayerValidationOutput
+} from './utils/twoLayerValidator';
+
+export {
   parseEmailList,
   type ImportOptions,
   type ParsedImportResult,

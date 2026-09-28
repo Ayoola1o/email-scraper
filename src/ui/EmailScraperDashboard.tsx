@@ -41,6 +41,28 @@ export interface ScrapedEmailRecord {
   emailCategory?: 'Business' | 'Personal' | 'General';
   provider?: string;
   isCatchAll?: boolean;
+  canonicalEmail?: string;
+  typoSuggestion?: string | null;
+  entropyScore?: number;
+  isGibberish?: boolean;
+  isFreeMail?: boolean;
+  isRoleAccount?: boolean;
+  isSpamTrap?: boolean;
+  isDisposable?: boolean;
+  staticChecks?: {
+    passed: number;
+    total: number;
+    failedChecks: string[];
+  };
+  mxEnrichment?: {
+    ip?: string;
+    hostname?: string;
+    priority?: number;
+    country?: string;
+    city?: string;
+    isp?: string;
+    asn?: string;
+  };
 }
 
 export interface CrawlJobTelemetry {
@@ -570,8 +592,7 @@ unreachable@fakeinvalidhost982348.com
                 if (verified) {
                   return {
                     ...rec,
-                    mxStatus: verified.mxStatus,
-                    mxRecords: verified.mxRecords
+                    ...verified
                   };
                 }
                 return rec;
@@ -1181,8 +1202,7 @@ unreachable@fakeinvalidhost982348.com
             if (verified) {
               return {
                 ...rec,
-                mxStatus: verified.mxStatus,
-                mxRecords: verified.mxRecords
+                ...verified
               };
             }
             return rec;
@@ -3872,30 +3892,186 @@ unreachable@fakeinvalidhost982348.com
                 </div>
               </div>
 
-              {/* Verification Details Block */}
+              {/* 2-Layer Email Validation & Verification Pipeline */}
               <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>🛡️</span> Verification Details
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>🛡️</span> 2-Layer Verification
+                  </div>
+                  {activeDetail.staticChecks && (
+                    <span style={{
+                      fontSize: '11px',
+                      padding: '2px 7px',
+                      borderRadius: '10px',
+                      fontWeight: 600,
+                      backgroundColor: activeDetail.staticChecks.passed === activeDetail.staticChecks.total ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                      color: activeDetail.staticChecks.passed === activeDetail.staticChecks.total ? '#10B981' : '#EF4444',
+                      border: `1px solid ${activeDetail.staticChecks.passed === activeDetail.staticChecks.total ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                    }}>
+                      L1: {activeDetail.staticChecks.passed}/{activeDetail.staticChecks.total} Checks
+                    </span>
+                  )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+                {/* Typo Suggestion Banner */}
+                {activeDetail.typoSuggestion && (
+                  <div style={{
+                    padding: '8px 10px',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    marginBottom: '10px',
+                    fontSize: '12px',
+                    color: '#F59E0B',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}>
+                    <span>💡</span>
+                    <span>Typo Suggestion: <strong>{activeDetail.typoSuggestion}</strong></span>
+                  </div>
+                )}
+
+                {/* Canonical Deduplication Form */}
+                {activeDetail.canonicalEmail && activeDetail.canonicalEmail !== activeDetail.email && (
+                  <div style={{
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(91, 95, 239, 0.1)',
+                    border: '1px solid rgba(91, 95, 239, 0.25)',
+                    marginBottom: '10px',
+                    fontSize: '11px',
+                    color: '#8B92B0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <span>Canonical Form:</span>
+                    <span style={{ color: '#FFFFFF', fontFamily: 'monospace' }}>{activeDetail.canonicalEmail}</span>
+                  </div>
+                )}
+
+                {/* Layer 1: Static Pre-SMTP Intelligence Badges */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                  <span style={{
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    backgroundColor: activeDetail.isFreeMail ? 'rgba(139, 146, 176, 0.15)' : 'rgba(91, 95, 239, 0.15)',
+                    color: activeDetail.isFreeMail ? '#8B92B0' : '#818CF8'
+                  }}>
+                    {activeDetail.isFreeMail ? 'FreeMail' : 'Business Domain'}
+                  </span>
+                  <span style={{
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    backgroundColor: activeDetail.isRoleAccount ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                    color: activeDetail.isRoleAccount ? '#F59E0B' : '#10B981'
+                  }}>
+                    {activeDetail.isRoleAccount ? 'Role Account' : 'Personal Mailbox'}
+                  </span>
+                  {activeDetail.isDisposable && (
+                    <span style={{
+                      padding: '2px 7px',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                      color: '#EF4444'
+                    }}>
+                      Disposable Domain
+                    </span>
+                  )}
+                  {activeDetail.isCatchAll && (
+                    <span style={{
+                      padding: '2px 7px',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                      color: '#F59E0B'
+                    }}>
+                      Catch-All
+                    </span>
+                  )}
+                  {activeDetail.entropyScore !== undefined && (
+                    <span style={{
+                      padding: '2px 7px',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      backgroundColor: activeDetail.isGibberish ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                      color: activeDetail.isGibberish ? '#EF4444' : '#8B92B0'
+                    }}>
+                      Entropy: {activeDetail.entropyScore.toFixed(2)} {activeDetail.isGibberish ? '(Gibberish)' : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Layer 2: Live SMTP & Complete MX Enrichment Block */}
+                <div style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  borderRadius: '6px',
+                  padding: '8px 10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#818CF8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Layer 2: Live MX Enrichment
+                  </div>
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                    <span style={{ color: '#8B92B0' }}>Status</span>
-                    <span style={{ color: activeDetail.mxStatus === 'deliverable' ? '#10B981' : '#EF4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span>●</span> {activeDetail.mxStatus === 'deliverable' ? 'Verified' : 'Invalid'} ↗
+                    <span style={{ color: '#8B92B0' }}>Mailbox Status</span>
+                    <span style={{ color: activeDetail.mxStatus === 'deliverable' ? '#10B981' : activeDetail.mxStatus === 'disposable' ? '#F59E0B' : '#EF4444', fontWeight: 600, textTransform: 'capitalize' }}>
+                      ● {activeDetail.mxStatus || 'Pending'}
                     </span>
                   </div>
+
+                  {activeDetail.provider && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                      <span style={{ color: '#8B92B0' }}>Provider</span>
+                      <span style={{ color: '#FFFFFF', fontWeight: 500 }}>{activeDetail.provider}</span>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                    <span style={{ color: '#8B92B0' }}>MX Check</span>
-                    <span style={{ color: activeDetail.mxStatus === 'deliverable' ? '#10B981' : '#EF4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span>●</span> {activeDetail.mxStatus === 'deliverable' ? 'Passed' : 'Failed'} ↗
+                    <span style={{ color: '#8B92B0' }}>MX Host</span>
+                    <span style={{ color: '#FFFFFF', fontFamily: 'monospace', fontSize: '11px', maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {activeDetail.mxEnrichment?.hostname || (activeDetail.mxRecords && activeDetail.mxRecords[0]) || 'None'}
+                      {activeDetail.mxEnrichment?.priority !== undefined ? ` [${activeDetail.mxEnrichment.priority}]` : ''}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                    <span style={{ color: '#8B92B0' }}>Deliverability</span>
-                    <span style={{ color: activeDetail.mxStatus === 'deliverable' ? '#10B981' : '#EF4444', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span>●</span> {activeDetail.mxStatus === 'deliverable' ? 'Valid' : 'Risky'} ↗
-                    </span>
-                  </div>
+
+                  {activeDetail.mxEnrichment?.ip && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                      <span style={{ color: '#8B92B0' }}>MX IP</span>
+                      <span style={{ color: '#FFFFFF', fontFamily: 'monospace', fontSize: '11px' }}>
+                        {activeDetail.mxEnrichment.ip}
+                      </span>
+                    </div>
+                  )}
+
+                  {(activeDetail.mxEnrichment?.country || activeDetail.mxEnrichment?.city) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                      <span style={{ color: '#8B92B0' }}>Location</span>
+                      <span style={{ color: '#FFFFFF', fontSize: '11px' }}>
+                        {[activeDetail.mxEnrichment.city, activeDetail.mxEnrichment.country].filter(Boolean).join(', ')}
+                      </span>
+                    </div>
+                  )}
+
+                  {(activeDetail.mxEnrichment?.isp || activeDetail.mxEnrichment?.asn) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                      <span style={{ color: '#8B92B0' }}>ISP / ASN</span>
+                      <span style={{ color: '#FFFFFF', fontSize: '11px', maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {[activeDetail.mxEnrichment.isp, activeDetail.mxEnrichment.asn].filter(Boolean).join(' • ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -825,9 +825,13 @@ app.delete('/api/folders/:folderId/records/:email', (req: Request, res: Response
 
 import { verifyEmailRecords } from '../utils/verifier';
 import { parseEmailList } from '../utils/importer';
+import { validateBulkEmailsTwoLayer } from '../utils/twoLayerValidator';
 
 /**
  * Common verification handler supporting both { records: [...] } and { emails: [...] }
+ * Runs the comprehensive 2-layer pipeline:
+ *  Layer 1: 16 static pre-SMTP checks
+ *  Layer 2: Live DNS MX with RFC 5321 A fallback & full MX enrichment
  */
 async function handleVerificationRequest(req: Request, res: Response) {
   try {
@@ -857,15 +861,36 @@ async function handleVerificationRequest(req: Request, res: Response) {
       return res.status(400).json({ error: 'Cannot verify more than 5,000 records at once' });
     }
 
-    const verified = await verifyEmailRecords(targetRecords);
+    const validationOutputs = await validateBulkEmailsTwoLayer(targetRecords);
+    const verified = validationOutputs.map(o => o.record);
     const deliverableCount = verified.filter(r => r.mxStatus === 'deliverable').length;
     const undeliverableCount = verified.filter(r => r.mxStatus === 'undeliverable').length;
     const disposableCount = verified.filter(r => r.mxStatus === 'disposable').length;
+
+    const outputs = validationOutputs.map(o => ({
+      email: o.email,
+      canonicalEmail: o.canonicalEmail || o.email,
+      mailboxStatus: o.mailboxStatus || 'unknown',
+      intelligenceFlags: {
+        isFreeMail: Boolean(o.isFreeMail),
+        isRoleAccount: Boolean(o.isRoleAccount),
+        isDisposable: Boolean(o.isDisposable),
+        isGibberish: Boolean(o.isGibberish),
+        isSpamTrap: Boolean(o.isSpamTrap),
+        isCatchAll: Boolean(o.isCatchAll),
+        entropyScore: o.entropyScore ?? 0,
+        staticChecks: o.staticChecks || { passed: 0, total: 16, failedChecks: [] }
+      },
+      typoSuggestion: o.typoSuggestion || null,
+      canonicalDeduplicationForm: o.canonicalDeduplicationForm || o.canonicalEmail || o.email,
+      mxEnrichment: o.mxEnrichment || null
+    }));
 
     return res.json({
       success: true,
       records: verified,
       results: verified, // Compatibility alias for frontend components
+      outputs,
       totalCount: verified.length,
       deliverableCount,
       undeliverableCount,
@@ -881,6 +906,100 @@ async function handleVerificationRequest(req: Request, res: Response) {
  */
 app.post('/api/verify', handleVerificationRequest);
 app.post('/api/verify/mx', handleVerificationRequest);
+
+/**
+ * Bulk Email Validator Endpoint (CSV, TXT, or Array input)
+ * Every address automatically passes through both layers:
+ *   Layer 1: 16 static pre-SMTP checks (RFC syntax, DNS label rules, IANA TLDs, disposable DB, role account, freemail, entropy, typos, blacklist)
+ *   Layer 2: Live SMTP/MX verification with RFC 5321 A-record fallback & complete MX enrichment
+ * Returns mailbox status, intelligence flags, typo suggestions, canonical deduplication form, and complete MX enrichment.
+ */
+app.post('/api/validator/bulk', async (req: Request, res: Response) => {
+  try {
+    const { csv, text, fileContent, records, emails } = req.body;
+    let targetRecords: ScrapedEmailRecord[] = [];
+
+    const rawInput = typeof csv === 'string' ? csv : (typeof text === 'string' ? text : (typeof fileContent === 'string' ? fileContent : null));
+
+    if (rawInput && rawInput.trim()) {
+      if (rawInput.length > 10 * 1024 * 1024) {
+        return res.status(400).json({ error: 'File size exceeds 10MB limit' });
+      }
+      const parsed = parseEmailList(rawInput, { allowInvalidSyntax: true });
+      targetRecords = parsed.records;
+    } else if (Array.isArray(records) && records.length > 0) {
+      targetRecords = records.map(r => {
+        if (typeof r === 'string') {
+          const parsed = parseEmailList(r, { allowInvalidSyntax: true });
+          return parsed.records[0] || null;
+        }
+        return r;
+      }).filter(Boolean);
+    } else if (Array.isArray(emails) && emails.length > 0) {
+      const parsed = parseEmailList(emails.join('\n'), { allowInvalidSyntax: true });
+      targetRecords = parsed.records;
+    } else {
+      return res.status(400).json({ error: 'Upload a CSV or TXT file content, or supply records/emails array' });
+    }
+
+    if (targetRecords.length === 0) {
+      return res.status(400).json({ error: 'No valid email addresses found in submitted data' });
+    }
+
+    if (targetRecords.length > 10000) {
+      return res.status(400).json({ error: 'Cannot process more than 10,000 addresses in a single bulk validator run' });
+    }
+
+    const validationOutputs = await validateBulkEmailsTwoLayer(targetRecords);
+    const verified = validationOutputs.map(o => o.record);
+
+    const deliverableCount = verified.filter(r => r.mxStatus === 'deliverable').length;
+    const undeliverableCount = verified.filter(r => r.mxStatus === 'undeliverable').length;
+    const disposableCount = verified.filter(r => r.mxStatus === 'disposable').length;
+    const riskyCount = verified.filter(r => r.mxStatus === 'risky').length;
+    const layer1BlockedCount = verified.filter(r => r.staticChecks && r.staticChecks.passed < r.staticChecks.total).length;
+
+    const outputs = validationOutputs.map(o => ({
+      email: o.email,
+      mailboxStatus: o.mailboxStatus || 'unknown',
+      canonicalDeduplicationForm: o.canonicalDeduplicationForm || o.canonicalEmail || o.email,
+      typoSuggestion: o.typoSuggestion || null,
+      intelligenceFlags: {
+        isFreeMail: Boolean(o.isFreeMail),
+        isRoleAccount: Boolean(o.isRoleAccount),
+        isDisposable: Boolean(o.isDisposable),
+        isGibberish: Boolean(o.isGibberish),
+        isSpamTrap: Boolean(o.isSpamTrap),
+        isCatchAll: Boolean(o.isCatchAll),
+        entropyScore: o.entropyScore ?? 0,
+        staticChecks: o.staticChecks || { passed: 0, total: 16, failedChecks: [] }
+      },
+      mxEnrichment: o.mxEnrichment || {
+        ip: undefined,
+        hostname: (o.mxRecords && o.mxRecords[0]) || undefined,
+        country: 'Unknown',
+        city: 'Unknown',
+        isp: 'Unknown ISP',
+        asn: 'Unknown'
+      }
+    }));
+
+    return res.json({
+      success: true,
+      totalProcessed: verified.length,
+      deliverableCount,
+      undeliverableCount,
+      disposableCount,
+      riskyCount,
+      layer1FilteredCount: layer1BlockedCount,
+      layer1FilterRate: `${((layer1BlockedCount / verified.length) * 100).toFixed(1)}%`,
+      records: verified,
+      outputs
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 /**
  * Imports pre-compiled email lists (CSV, TSV, JSON, or Plaintext)
@@ -926,8 +1045,9 @@ app.post('/api/import', async (req: Request, res: Response) => {
     let finalRecords = parsedResult.records;
 
     if (verifyNow && finalRecords.length > 0) {
-      // Run live MX deliverability verification
-      finalRecords = await verifyEmailRecords(finalRecords);
+      // Run complete 2-layer email validation and verification
+      const validationOutputs = await validateBulkEmailsTwoLayer(finalRecords);
+      finalRecords = validationOutputs.map(o => o.record);
     }
 
     const deliverableCount = finalRecords.filter(r => r.mxStatus === 'deliverable').length;

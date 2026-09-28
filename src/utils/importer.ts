@@ -11,6 +11,7 @@ export interface ImportOptions {
   sourceName?: string;
   defaultCompany?: string;
   jobId?: string;
+  allowInvalidSyntax?: boolean;
 }
 
 export interface SyntaxErrorInfo {
@@ -107,6 +108,7 @@ function createRecordFromEmail(
     sourceUrl?: string;
     jobId?: string;
     tags?: string[];
+    allowInvalidSyntax?: boolean;
   } = {}
 ): { record?: ScrapedEmailRecord; error?: string } {
   const email = normalizeEmail(rawEmail.trim().replace(/^<|>$/g, ''));
@@ -114,16 +116,20 @@ function createRecordFromEmail(
     return { error: 'Missing "@" symbol or empty email' };
   }
 
-  if (!EMAIL_SYNTAX_REGEX.test(email)) {
-    return { error: 'Invalid email syntax format' };
-  }
+  const syntaxValid = EMAIL_SYNTAX_REGEX.test(email);
+  const tldValid = hasValidTld(email);
 
-  if (!hasValidTld(email)) {
-    return { error: 'Invalid or unrecognized Top-Level Domain (TLD)' };
+  if (!extra.allowInvalidSyntax) {
+    if (!syntaxValid) {
+      return { error: 'Invalid email syntax format' };
+    }
+    if (!tldValid) {
+      return { error: 'Invalid or unrecognized Top-Level Domain (TLD)' };
+    }
   }
 
   const parts = email.split('@');
-  const domain = parts[1].toLowerCase().trim();
+  const domain = (parts[1] || '').toLowerCase().trim();
   const isRole = isRoleBasedEmail(email);
   const isDisposable = isDisposableDomain(domain);
   const inferredName = inferNameFromEmail(email);
@@ -210,7 +216,8 @@ export function parseEmailList(
         let extra: any = {
           sourceUrl: options.sourceName,
           company: options.defaultCompany,
-          jobId: options.jobId
+          jobId: options.jobId,
+          allowInvalidSyntax: options.allowInvalidSyntax
         };
 
         if (typeof item === 'string') {
@@ -373,7 +380,8 @@ export function parseEmailList(
       phone: phoneColIdx !== -1 ? cells[phoneColIdx] : undefined,
       linkedin: linkedinColIdx !== -1 ? cells[linkedinColIdx] : undefined,
       sourceUrl: options.sourceName || 'Imported List',
-      jobId: options.jobId
+      jobId: options.jobId,
+      allowInvalidSyntax: options.allowInvalidSyntax
     };
 
     const res = createRecordFromEmail(rawEmail, extra);

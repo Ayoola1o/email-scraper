@@ -14,7 +14,7 @@
     "dev": "ts-node src/cli.ts",
     "start": "ts-node src/server/index.ts",
     "server": "node dist/server/index.js",
-    "test": "node test_suite.js && node test_columns.js && node test_enrichment_mx.js && node test_import_verification.js && node test_huntiq_sync.js && node test_server.js && node test_hardening.js",
+    "test": "node test_suite.js && node test_columns.js && node test_enrichment_mx.js && node test_import_verification.js && node test_two_layer_validator.js && node test_bulk_validator_endpoint.js && node test_huntiq_sync.js && node test_server.js && node test_hardening.js",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

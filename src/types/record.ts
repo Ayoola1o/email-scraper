@@ -56,6 +56,37 @@ export interface ScrapedEmailRecord {
   tags?: string[];
   /** Calculated accuracy / discovery confidence percentage */
   confidence?: number;
+  /** Layer 1: Canonical deduplicated form (lowercase, subaddressing tags stripped, dot normalized) */
+  canonicalEmail?: string;
+  /** Layer 1: Levenshtein typo suggestion if mistyped domain detected */
+  typoSuggestion?: string | null;
+  /** Layer 1: Shannon entropy score (0.0 to 1.0) of local-part */
+  entropyScore?: number;
+  /** Layer 1: Whether local-part exhibits high entropy / gibberish pattern */
+  isGibberish?: boolean;
+  /** Layer 1: Free public email provider (Gmail, Yahoo, Hotmail, etc.) */
+  isFreeMail?: boolean;
+  /** Layer 1: Role-based group alias (support, info, sales, admin, etc.) */
+  isRoleAccount?: boolean;
+  /** Layer 1: Known spam trap / honeypot pattern */
+  isSpamTrap?: boolean;
+  /** Layer 1: Static checks summary (how many of the 16 checks passed) */
+  staticChecks?: {
+    passed: number;
+    total: number;
+    failedChecks: string[];
+    details?: Record<string, { pass: boolean; reason?: string }>;
+  };
+  /** Layer 2: Complete MX Enrichment Block */
+  mxEnrichment?: {
+    ip: string;
+    hostname: string;
+    priority: number;
+    country: string;
+    city: string;
+    isp: string;
+    asn: string;
+  };
 }
 
 /**
