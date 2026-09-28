@@ -316,7 +316,7 @@ export const EmailScraperDashboard: React.FC = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [rawTextInput, setRawTextInput] = useState('');
   const [isSyncingHuntiq, setIsSyncingHuntiq] = useState(false);
-  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
 
   // Import Email List & Verification State
   const [importRawText, setImportRawText] = useState('');
@@ -334,6 +334,34 @@ export const EmailScraperDashboard: React.FC = () => {
     disposable: number;
   } | null>(null);
   const [importLastSummary, setImportLastSummary] = useState<any>(null);
+
+  // Real-time Progressive Deliverability Validation Telemetry
+  const [validationProgress, setValidationProgress] = useState<{
+    active: boolean;
+    total: number;
+    completed: number;
+    deliverable: number;
+    undeliverable: number;
+    disposable: number;
+    currentEmail?: string;
+    currentDomain?: string;
+  } | null>(null);
+  const cancelValidationRef = useRef<boolean>(false);
+
+  // Known Domain Typos Map
+  const DOMAIN_TYPOS: Record<string, string> = {
+    'gmial.com': 'gmail.com',
+    'gamil.com': 'gmail.com',
+    'gmaill.com': 'gmail.com',
+    'gmai.com': 'gmail.com',
+    'yaho.com': 'yahoo.com',
+    'yahooo.com': 'yahoo.com',
+    'hotmial.com': 'hotmail.com',
+    'hotmai.com': 'hotmail.com',
+    'outlok.com': 'outlook.com',
+    'outloo.com': 'outlook.com',
+    'iclud.com': 'icloud.com'
+  };
 
   // High-fidelity pre-compiled sample lists for instant 1-click testing
   const SAMPLE_CSV_DATA = `Email,Full Name,Company,Job Title,Phone
@@ -420,8 +448,8 @@ unreachable@fakeinvalidhost982348.com
 
     setIsImporting(true);
     setImportProgress({
-      step: verifyNow ? 'Validating syntax and resolving live MX mail servers...' : 'Processing imported records...',
-      percent: 35,
+      step: 'Parsing, normalizing, and deduplicating list...',
+      percent: 15,
       deliverable: 0,
       undeliverable: 0,
       disposable: 0
@@ -433,7 +461,7 @@ unreachable@fakeinvalidhost982348.com
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: importRawText,
-          verifyNow,
+          verifyNow: false, // Parse immediately to enable real-time progressive chunking
           sourceName: importFileName || 'Imported List',
           defaultCompany: importDefaultCompany.trim() || undefined
         })
@@ -446,19 +474,7 @@ unreachable@fakeinvalidhost982348.com
 
       let finalRecords: ScrapedEmailRecord[] = data.records || [];
 
-      if (importQuarantineInvalid) {
-        finalRecords = finalRecords.filter(r => r.mxStatus === 'deliverable' || r.mxStatus === 'pending');
-      }
-
-      setImportProgress({
-        step: 'Import completed successfully!',
-        percent: 100,
-        deliverable: data.deliverableCount || 0,
-        undeliverable: data.undeliverableCount || 0,
-        disposable: data.disposableCount || 0
-      });
-
-      // Merge records into active dataset
+      // Merge records into active dataset immediately
       mergeRecords(finalRecords);
 
       const jobEntryId = `import_${Date.now()}`;
@@ -480,19 +496,139 @@ unreachable@fakeinvalidhost982348.com
           id: Date.now().toString(),
           time: getFormattedTime(),
           status: 'Completed',
-          detail: `Imported ${finalRecords.length} contacts (${data.deliverableCount || 0} deliverable, ${data.undeliverableCount || 0} undeliverable)`
+          detail: `Imported ${finalRecords.length} contacts (${data.summary?.validCount || finalRecords.length} valid format)`
         },
         ...prev.slice(0, 9)
       ]);
 
-      setImportLastSummary(data);
+      if (verifyNow && finalRecords.length > 0) {
+        cancelValidationRef.current = false;
+        const total = finalRecords.length;
+        let completed = 0;
+        let deliverableCount = 0;
+        let undeliverableCount = 0;
+        let disposableCount = 0;
 
-      if (verifyNow) {
+        setValidationProgress({
+          active: true,
+          total,
+          completed: 0,
+          deliverable: 0,
+          undeliverable: 0,
+          disposable: 0,
+          currentEmail: finalRecords[0].email,
+          currentDomain: finalRecords[0].email.split('@')[1] || ''
+        });
+
+        const CHUNK_SIZE = 15;
+        for (let i = 0; i < finalRecords.length; i += CHUNK_SIZE) {
+          if (cancelValidationRef.current) {
+            showToast(`Import validation stopped at ${completed} of ${total} contacts.`, 'warning');
+            break;
+          }
+
+          const chunk = finalRecords.slice(i, i + CHUNK_SIZE);
+          const activeEmail = chunk[0].email;
+          const activeDomain = activeEmail.split('@')[1] || '';
+
+          const pct = Math.round((i / total) * 100);
+          setImportProgress({
+            step: `Validating deliverability: ${i} of ${total} emails (${pct}%)... Checking ${activeDomain}`,
+            percent: Math.max(15, pct),
+            deliverable: deliverableCount,
+            undeliverable: undeliverableCount,
+            disposable: disposableCount
+          });
+
+          setValidationProgress(prev => prev ? ({
+            ...prev,
+            currentEmail: activeEmail,
+            currentDomain: activeDomain
+          }) : null);
+
+          try {
+            const vRes = await fetch('/api/verify/mx', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ emails: chunk.map(c => c.email) })
+            });
+            const vData = await vRes.json();
+            if (vData.success && vData.results) {
+              const statusMap = new Map<string, any>();
+              vData.results.forEach((r: any) => {
+                statusMap.set(r.email.toLowerCase(), r);
+                if (r.mxStatus === 'deliverable') deliverableCount++;
+                else if (r.mxStatus === 'disposable') disposableCount++;
+                else if (r.mxStatus === 'undeliverable') undeliverableCount++;
+              });
+
+              setRecords(prev => prev.map(rec => {
+                const verified = statusMap.get(rec.email.toLowerCase());
+                if (verified) {
+                  return {
+                    ...rec,
+                    mxStatus: verified.mxStatus,
+                    mxRecords: verified.mxRecords
+                  };
+                }
+                return rec;
+              }));
+            }
+          } catch (err) {
+            console.error('Validation error on chunk:', err);
+          }
+
+          completed = Math.min(total, i + chunk.length);
+          const currentPct = Math.round((completed / total) * 100);
+          setImportProgress({
+            step: `Validated ${completed} of ${total} emails (${currentPct}%)...`,
+            percent: currentPct,
+            deliverable: deliverableCount,
+            undeliverable: undeliverableCount,
+            disposable: disposableCount
+          });
+
+          setValidationProgress(prev => prev ? ({
+            ...prev,
+            completed,
+            deliverable: deliverableCount,
+            undeliverable: undeliverableCount,
+            disposable: disposableCount
+          }) : null);
+        }
+
+        if (importQuarantineInvalid) {
+          setRecords(prev => prev.filter(r => r.mxStatus === 'deliverable' || r.mxStatus === 'pending'));
+        }
+
+        setImportProgress({
+          step: `Validation complete: ${deliverableCount} deliverable, ${undeliverableCount} undeliverable, ${disposableCount} disposable.`,
+          percent: 100,
+          deliverable: deliverableCount,
+          undeliverable: undeliverableCount,
+          disposable: disposableCount
+        });
+
+        setImportLastSummary({
+          ...data,
+          deliverableCount,
+          undeliverableCount,
+          disposableCount
+        });
+
         showToast(
-          `Imported & verified ${finalRecords.length} contacts: ${data.deliverableCount} deliverable, ${data.undeliverableCount} undeliverable, ${data.disposableCount} disposable!`,
+          `Imported & verified ${finalRecords.length} contacts: ${deliverableCount} deliverable, ${undeliverableCount} undeliverable, ${disposableCount} disposable!`,
           'success'
         );
       } else {
+        setImportProgress({
+          step: 'Import completed successfully!',
+          percent: 100,
+          deliverable: 0,
+          undeliverable: 0,
+          disposable: 0
+        });
+        setImportLastSummary(data);
         showToast(`Imported ${finalRecords.length} contacts successfully!`, 'success');
       }
     } catch (err: any) {
@@ -524,7 +660,7 @@ unreachable@fakeinvalidhost982348.com
   ]);
 
   // Toast Helper
-  const showToast = (text: string, type: 'success' | 'error' | 'info' = 'info') => {
+  const showToast = (text: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
   };
@@ -953,37 +1089,118 @@ unreachable@fakeinvalidhost982348.com
     });
   };
 
+  const handleCancelValidation = () => {
+    cancelValidationRef.current = true;
+    showToast('Stopping validation...', 'info');
+  };
+
+  const handleFixDomainTypos = () => {
+    let fixedCount = 0;
+    setRecords(prev => prev.map(rec => {
+      const parts = rec.email.split('@');
+      if (parts.length === 2 && DOMAIN_TYPOS[parts[1].toLowerCase()]) {
+        const corrected = DOMAIN_TYPOS[parts[1].toLowerCase()];
+        fixedCount++;
+        return {
+          ...rec,
+          email: `${parts[0]}@${corrected}`,
+          domain: corrected,
+          mxStatus: 'pending' as const
+        };
+      }
+      return rec;
+    }));
+    if (fixedCount > 0) {
+      showToast(`Corrected ${fixedCount} domain typo(s)! Contacts are ready to verify.`, 'success');
+    }
+  };
+
   const handleVerifyDeliverability = async (targets: ScrapedEmailRecord[]) => {
     const unverified = targets.filter(t => !t.mxStatus || t.mxStatus === 'pending');
-    if (unverified.length === 0) return;
+    if (unverified.length === 0) {
+      showToast('All contacts in this list have already been deliverability checked.', 'info');
+      return;
+    }
 
-    try {
-      const emails = unverified.map(u => u.email);
-      const res = await fetch('/api/verify/mx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emails })
-      });
-      const data: any = await res.json();
-      if (data.success && data.results) {
-        const statusMap = new Map<string, any>();
-        data.results.forEach((r: any) => statusMap.set(r.email.toLowerCase(), r));
+    cancelValidationRef.current = false;
+    const total = unverified.length;
+    let completed = 0;
+    let deliverableCount = 0;
+    let undeliverableCount = 0;
+    let disposableCount = 0;
 
-        setRecords(prev => prev.map(rec => {
-          const verified = statusMap.get(rec.email.toLowerCase());
-          if (verified) {
-            return {
-              ...rec,
-              mxStatus: verified.mxStatus,
-              mxRecords: verified.mxRecords
-            };
-          }
-          return rec;
-        }));
-        showToast(`Verified deliverability for ${data.results.length} email(s).`, 'info');
+    setValidationProgress({
+      active: true,
+      total,
+      completed: 0,
+      deliverable: 0,
+      undeliverable: 0,
+      disposable: 0,
+      currentEmail: unverified[0].email,
+      currentDomain: unverified[0].email.split('@')[1] || ''
+    });
+
+    const CHUNK_SIZE = 15;
+    for (let i = 0; i < unverified.length; i += CHUNK_SIZE) {
+      if (cancelValidationRef.current) {
+        showToast(`Deliverability validation stopped at ${completed} of ${total} contacts.`, 'warning');
+        break;
       }
-    } catch {
-      // Non-fatal
+
+      const chunk = unverified.slice(i, i + CHUNK_SIZE);
+      const activeEmail = chunk[0].email;
+      const activeDomain = activeEmail.split('@')[1] || '';
+
+      setValidationProgress(prev => prev ? ({
+        ...prev,
+        currentEmail: activeEmail,
+        currentDomain: activeDomain
+      }) : null);
+
+      try {
+        const res = await fetch('/api/verify/mx', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emails: chunk.map(c => c.email) })
+        });
+        const data: any = await res.json();
+        if (data.success && data.results) {
+          const statusMap = new Map<string, any>();
+          data.results.forEach((r: any) => {
+            statusMap.set(r.email.toLowerCase(), r);
+            if (r.mxStatus === 'deliverable') deliverableCount++;
+            else if (r.mxStatus === 'disposable') disposableCount++;
+            else if (r.mxStatus === 'undeliverable') undeliverableCount++;
+          });
+
+          setRecords(prev => prev.map(rec => {
+            const verified = statusMap.get(rec.email.toLowerCase());
+            if (verified) {
+              return {
+                ...rec,
+                mxStatus: verified.mxStatus,
+                mxRecords: verified.mxRecords
+              };
+            }
+            return rec;
+          }));
+        }
+      } catch (err) {
+        console.error('Validation error on chunk:', err);
+      }
+
+      completed = Math.min(total, i + chunk.length);
+      setValidationProgress(prev => prev ? ({
+        ...prev,
+        completed,
+        deliverable: deliverableCount,
+        undeliverable: undeliverableCount,
+        disposable: disposableCount
+      }) : null);
+    }
+
+    if (!cancelValidationRef.current) {
+      showToast(`Verification complete: ${deliverableCount} deliverable, ${undeliverableCount} undeliverable, ${disposableCount} disposable out of ${total}.`, 'success');
     }
   };
 
@@ -2658,25 +2875,31 @@ unreachable@fakeinvalidhost982348.com
 
             <button
               type="button"
-              onClick={() => handleVerifyDeliverability(records)}
+              onClick={() => {
+                if (validationProgress?.active) {
+                  handleCancelValidation();
+                } else {
+                  handleVerifyDeliverability(records);
+                }
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
                 padding: '8px 14px',
-                backgroundColor: '#141833',
-                border: '1px solid rgba(91, 95, 239, 0.3)',
+                backgroundColor: validationProgress?.active ? '#7F1D1D' : '#141833',
+                border: validationProgress?.active ? '1px solid #EF4444' : '1px solid rgba(91, 95, 239, 0.3)',
                 borderRadius: '8px',
-                color: '#818CF8',
+                color: validationProgress?.active ? '#FCA5A5' : '#818CF8',
                 fontSize: '13px',
                 fontWeight: 600,
                 cursor: 'pointer',
                 transition: 'all 0.15s ease'
               }}
-              title="Run live MX DNS checks on all unverified contacts"
+              title={validationProgress?.active ? 'Pause or stop the active validation stream' : 'Run live MX DNS checks on all unverified contacts'}
             >
-              <span>⚡</span>
-              <span>Verify Deliverability</span>
+              <span>{validationProgress?.active ? '⏹️' : '⚡'}</span>
+              <span>{validationProgress?.active ? `Stop Validating (${validationProgress.completed}/${validationProgress.total})` : 'Verify Deliverability'}</span>
             </button>
 
             <button
@@ -2730,6 +2953,161 @@ unreachable@fakeinvalidhost982348.com
             </button>
           </div>
         </div>
+
+        {/* Live Progressive Validation Telemetry HUD */}
+        {validationProgress && validationProgress.active && (
+          <div style={{
+            backgroundColor: '#11162B',
+            border: '1px solid #5B5FEF',
+            borderRadius: '12px',
+            padding: '16px 20px',
+            boxShadow: '0 8px 30px rgba(91, 95, 239, 0.18)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Top row: Status, Counter, Stop button */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: 'rgba(91, 95, 239, 0.2)',
+                  color: '#A5B4FC',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  padding: '3px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(91, 95, 239, 0.4)'
+                }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981' }} />
+                  Live Deliverability Validation
+                </span>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF' }}>
+                  Validated {validationProgress.completed.toLocaleString()} of {validationProgress.total.toLocaleString()} emails
+                  {' '}<span style={{ color: '#818CF8' }}>({Math.round((validationProgress.completed / Math.max(1, validationProgress.total)) * 100)}%)</span>
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={handleCancelValidation}
+                  style={{
+                    backgroundColor: '#1E162B',
+                    border: '1px solid #EF4444',
+                    color: '#F87171',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <span>⏹️</span>
+                  <span>Stop / Pause</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Middle: Active resolving target banner */}
+            <div style={{ fontSize: '13px', color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>Resolving MX for:</span>
+              <code style={{ backgroundColor: '#1E293B', color: '#38BDF8', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}>
+                {validationProgress.currentEmail || 'Initiating DNS query...'}
+              </code>
+              {validationProgress.currentDomain && (
+                <span style={{ color: '#64748B', fontSize: '12px' }}>
+                  (Domain: <strong>{validationProgress.currentDomain}</strong>)
+                </span>
+              )}
+            </div>
+
+            {/* Progress Bar */}
+            <div style={{ width: '100%', height: '8px', backgroundColor: '#1E2544', borderRadius: '999px', overflow: 'hidden' }}>
+              <div style={{
+                width: `${Math.round((validationProgress.completed / Math.max(1, validationProgress.total)) * 100)}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #5B5FEF 0%, #10B981 100%)',
+                borderRadius: '999px',
+                transition: 'width 0.25s ease'
+              }} />
+            </div>
+
+            {/* Breakdown stats pills */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', fontSize: '12px', paddingTop: '2px' }}>
+              <span style={{ color: '#34D399', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981' }} />
+                <strong>{validationProgress.deliverable.toLocaleString()}</strong> Deliverable ({validationProgress.completed > 0 ? Math.round((validationProgress.deliverable / validationProgress.completed) * 100) : 0}%)
+              </span>
+              <span style={{ color: '#F87171', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#EF4444' }} />
+                <strong>{validationProgress.undeliverable.toLocaleString()}</strong> Undeliverable / Dead ({validationProgress.completed > 0 ? Math.round((validationProgress.undeliverable / validationProgress.completed) * 100) : 0}%)
+              </span>
+              <span style={{ color: '#FBBF24', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#F59E0B' }} />
+                <strong>{validationProgress.disposable.toLocaleString()}</strong> Disposable / Temp
+              </span>
+              <span style={{ color: '#94A3B8', marginLeft: 'auto' }}>
+                Remaining in queue: <strong>{Math.max(0, validationProgress.total - validationProgress.completed).toLocaleString()}</strong>
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Domain Typo Alert Banner */}
+        {(() => {
+          const typoRecords = records.filter(r => {
+            const parts = r.email.toLowerCase().split('@');
+            return parts.length === 2 && DOMAIN_TYPOS[parts[1]];
+          });
+          if (typoRecords.length === 0) return null;
+          return (
+            <div style={{
+              backgroundColor: '#1E1B4B',
+              border: '1px solid #6366F1',
+              borderRadius: '10px',
+              padding: '12px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#C7D2FE' }}>
+                <span style={{ fontSize: '16px' }}>💡</span>
+                <span>
+                  <strong>Domain Typo Auto-Detection:</strong> Found <strong>{typoRecords.length}</strong> contact(s) with common domain typos (e.g. <code style={{ backgroundColor: '#312E81', padding: '2px 5px', borderRadius: '4px' }}>{typoRecords[0].email}</code>).
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleFixDomainTypos}
+                style={{
+                  backgroundColor: '#4F46E5',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#FFFFFF',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(79, 70, 229, 0.4)'
+                }}
+              >
+                Fix All {typoRecords.length} Typos (1-Click)
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Top 4 KPI Stat Cards */}
         <div className="responsive-results-kpi" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
@@ -5237,9 +5615,10 @@ unreachable@fakeinvalidhost982348.com
           ...styles.toastNotification,
           backgroundColor:
             toastMessage.type === 'success' ? '#065F46' :
-            toastMessage.type === 'error' ? '#881337' : '#1E3A8A'
+            toastMessage.type === 'error' ? '#881337' :
+            toastMessage.type === 'warning' ? '#78350F' : '#1E3A8A'
         }}>
-          {toastMessage.type === 'success' ? '✓ ' : toastMessage.type === 'error' ? '✕ ' : 'ℹ '}
+          {toastMessage.type === 'success' ? '✓ ' : toastMessage.type === 'error' ? '✕ ' : toastMessage.type === 'warning' ? '⚠ ' : 'ℹ '}
           {toastMessage.text}
         </div>
       )}
