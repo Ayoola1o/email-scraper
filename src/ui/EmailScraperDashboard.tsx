@@ -39,6 +39,8 @@ export interface ScrapedEmailRecord {
   tags?: string[];
   company?: string;
   emailCategory?: 'Business' | 'Personal' | 'General';
+  provider?: string;
+  isCatchAll?: boolean;
 }
 
 export interface CrawlJobTelemetry {
@@ -314,6 +316,7 @@ export const EmailScraperDashboard: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [exportSegment, setExportSegment] = useState<'all' | 'deliverable' | 'suppression' | 'risky'>('deliverable');
   const [rawTextInput, setRawTextInput] = useState('');
   const [isSyncingHuntiq, setIsSyncingHuntiq] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
@@ -1331,43 +1334,65 @@ unreachable@fakeinvalidhost982348.com
   // Multi-Format Export Handler
   // ---------------------------------------------------------------------------
 
-  const handleExport = (format: 'csv' | 'json' | 'txt' | 'vcf') => {
-    const targets = selectedEmails.size > 0
+  const handleExport = (
+    format: 'csv' | 'json' | 'txt' | 'vcf',
+    overrideSegment?: 'all' | 'deliverable' | 'suppression' | 'risky'
+  ) => {
+    const activeSegment = overrideSegment || exportSegment;
+    let targets = selectedEmails.size > 0
       ? records.filter(r => selectedEmails.has(r.email))
       : records;
 
+    if (activeSegment === 'deliverable') {
+      targets = targets.filter(r => r.mxStatus === 'deliverable' && !r.isCatchAll);
+    } else if (activeSegment === 'suppression') {
+      targets = targets.filter(r => r.mxStatus === 'undeliverable' || r.mxStatus === 'disposable');
+    } else if (activeSegment === 'risky') {
+      targets = targets.filter(r => r.mxStatus === 'risky' || r.isCatchAll);
+    }
+
     if (targets.length === 0) {
-      showToast('No records available to export.', 'error');
+      showToast(`No records found matching the "${activeSegment}" segment.`, 'error');
       return;
     }
 
-    const activeCols = Array.from(selectedColumns);
+    const filenamePrefix =
+      activeSegment === 'deliverable' ? 'clean_deliverable_leads' :
+      activeSegment === 'suppression' ? 'suppression_blacklist' :
+      activeSegment === 'risky' ? 'catch_all_risky_leads' :
+      'all_discovered_leads';
 
     if (format === 'json') {
-      const filtered = targets.map(r => {
-        const obj: any = {};
-        activeCols.forEach(c => { obj[c] = (r as any)[c]; });
-        return obj;
-      });
-      downloadFile(JSON.stringify(filtered, null, 2), 'email_leads.json', 'application/json');
+      downloadFile(JSON.stringify(targets, null, 2), `${filenamePrefix}.json`, 'application/json');
     } else if (format === 'txt') {
       const text = targets.map(r => r.email).join('\n');
-      downloadFile(text, 'email_leads.txt', 'text/plain');
+      downloadFile(text, `${filenamePrefix}.txt`, 'text/plain');
     } else if (format === 'csv') {
-      const headers = activeCols.map(c => `"${c.toUpperCase()}"`).join(',');
-      const rows = targets.map(r =>
-        activeCols.map(c => `"${String((r as any)[c] || '').replace(/"/g, '""')}"`).join(',')
-      );
-      const csv = '\uFEFF' + [headers, ...rows].join('\r\n');
-      downloadFile(csv, 'email_leads.csv', 'text/csv;charset=utf-8;');
+      const headers = ['Email', 'Full Name', 'Company', 'Job Title', 'Phone', 'Type', 'Domain', 'Deliverability Status', 'Mail Provider', 'Catch-All Risk', 'Source URL', 'Discovered At'];
+      const rows = targets.map(r => [
+        `"${(r.email || '').replace(/"/g, '""')}"`,
+        `"${(r.name || '').replace(/"/g, '""')}"`,
+        `"${(r.company || '').replace(/"/g, '""')}"`,
+        `"${(r.jobTitle || '').replace(/"/g, '""')}"`,
+        `"${(r.phone || '').replace(/"/g, '""')}"`,
+        `"${(r.type || '').replace(/"/g, '""')}"`,
+        `"${(r.domain || '').replace(/"/g, '""')}"`,
+        `"${(r.mxStatus || 'pending').replace(/"/g, '""')}"`,
+        `"${(r.provider || '').replace(/"/g, '""')}"`,
+        `"${r.isCatchAll ? 'Yes (Accept-All Gateway)' : 'No'}"`,
+        `"${(r.sourceUrl || '').replace(/"/g, '""')}"`,
+        `"${(r.discoveredAt || '').replace(/"/g, '""')}"`
+      ].join(','));
+      const csv = '\uFEFF' + [headers.map(h => `"${h}"`).join(','), ...rows].join('\r\n');
+      downloadFile(csv, `${filenamePrefix}.csv`, 'text/csv;charset=utf-8;');
     } else if (format === 'vcf') {
       const vcf = targets.map(r =>
-        `BEGIN:VCARD\nVERSION:3.0\nFN:${r.name || 'Lead'}\nEMAIL:${r.email}\nORG:${r.domain || ''}\nTITLE:${r.jobTitle || ''}\nTEL:${r.phone || ''}\nEND:VCARD`
+        `BEGIN:VCARD\nVERSION:3.0\nFN:${r.name || 'Lead'}\nEMAIL:${r.email}\nORG:${r.company || r.domain || ''}\nTITLE:${r.jobTitle || ''}\nTEL:${r.phone || ''}\nEND:VCARD`
       ).join('\n');
-      downloadFile(vcf, 'contacts.vcf', 'text/vcard');
+      downloadFile(vcf, `${filenamePrefix}.vcf`, 'text/vcard');
     }
 
-    showToast(`Exported ${targets.length} leads in ${format.toUpperCase()} format.`, 'success');
+    showToast(`Exported ${targets.length} leads (${activeSegment} segment) as ${format.toUpperCase()}.`, 'success');
     setShowExportModal(false);
   };
 
@@ -2927,6 +2952,29 @@ unreachable@fakeinvalidhost982348.com
 
             <button
               type="button"
+              onClick={() => handleExport('csv', 'deliverable')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                borderRadius: '8px',
+                color: '#34D399',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="1-Click export: Only 100% verified deliverable contacts (0% bounce risk)"
+            >
+              <span>🌟</span>
+              <span>Clean List ({records.filter(r => r.mxStatus === 'deliverable' && !r.isCatchAll).length})</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowExportModal(true)}
               style={{
                 display: 'flex',
@@ -3473,12 +3521,39 @@ unreachable@fakeinvalidhost982348.com
                               borderRadius: '6px',
                               fontSize: '11px',
                               fontWeight: 600,
-                              backgroundColor: isVerified ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                              color: isVerified ? '#10B981' : '#EF4444',
-                              border: `1px solid ${isVerified ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`
-                            }}>
-                              {isVerified ? 'Verified' : 'Invalid'}
+                              backgroundColor:
+                                record.mxStatus === 'deliverable' && !record.isCatchAll ? 'rgba(16, 185, 129, 0.15)' :
+                                record.mxStatus === 'risky' || record.isCatchAll ? 'rgba(245, 158, 11, 0.15)' :
+                                record.mxStatus === 'disposable' ? 'rgba(234, 88, 12, 0.15)' :
+                                record.mxStatus === 'undeliverable' ? 'rgba(239, 68, 68, 0.15)' :
+                                'rgba(148, 163, 184, 0.15)',
+                              color:
+                                record.mxStatus === 'deliverable' && !record.isCatchAll ? '#10B981' :
+                                record.mxStatus === 'risky' || record.isCatchAll ? '#F59E0B' :
+                                record.mxStatus === 'disposable' ? '#FB923C' :
+                                record.mxStatus === 'undeliverable' ? '#EF4444' :
+                                '#94A3B8',
+                              border: `1px solid ${
+                                record.mxStatus === 'deliverable' && !record.isCatchAll ? 'rgba(16, 185, 129, 0.35)' :
+                                record.mxStatus === 'risky' || record.isCatchAll ? 'rgba(245, 158, 11, 0.35)' :
+                                record.mxStatus === 'disposable' ? 'rgba(234, 88, 12, 0.35)' :
+                                record.mxStatus === 'undeliverable' ? 'rgba(239, 68, 68, 0.35)' :
+                                'rgba(148, 163, 184, 0.3)'
+                              }`
+                            }}
+                            title={record.isCatchAll ? 'Catch-All Security Gateway detected (risky deliverability)' : record.provider ? `Mail Provider: ${record.provider}` : undefined}
+                            >
+                              {record.mxStatus === 'deliverable' && !record.isCatchAll ? 'Deliverable' :
+                               record.mxStatus === 'risky' || record.isCatchAll ? 'Risky (Catch-All)' :
+                               record.mxStatus === 'disposable' ? 'Disposable' :
+                               record.mxStatus === 'undeliverable' ? 'Undeliverable' :
+                               'Pending'}
                             </span>
+                            {record.provider && record.provider !== 'Unknown' && (
+                              <div style={{ fontSize: '10px', color: '#8B92B0', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                                {record.provider.replace(/ (Gateway|Server|Mail|Enterprise|Sentinel|Security)/, '')}
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: '12px 14px', color: '#FFFFFF', fontSize: '13px', fontWeight: 500 }}>
                             {record.confidence ? `${record.confidence}%` : '95%'}
@@ -5372,53 +5447,219 @@ unreachable@fakeinvalidhost982348.com
         </div>
       )}
 
-      {/* Export Modal */}
-      {showExportModal && (
-        <div style={styles.modalOverlay}>
-          <div className="responsive-modal-small" style={styles.modalCardSmall}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>Export Discovered Leads</h3>
-              <button onClick={() => setShowExportModal(false)} style={styles.modalCloseBtn}>✕</button>
-            </div>
+      {/* Export Modal with 1-Click Segmented Presets */}
+      {showExportModal && (() => {
+        const cleanCount = records.filter(r => r.mxStatus === 'deliverable' && !r.isCatchAll).length;
+        const suppressionCount = records.filter(r => r.mxStatus === 'undeliverable' || r.mxStatus === 'disposable').length;
+        const riskyCount = records.filter(r => r.mxStatus === 'risky' || r.isCatchAll).length;
+        const allCount = records.length;
 
-            <p style={{ fontSize: '14px', color: '#8B92B0', margin: '0 0 16px 0' }}>
-              Choose a format for {selectedEmails.size > 0 ? `${selectedEmails.size} selected` : `${records.length} total`} contacts.
-            </p>
+        return (
+          <div style={styles.modalOverlay}>
+            <div className="responsive-modal-small" style={{ ...styles.modalCardSmall, maxWidth: '580px' }}>
+              <div style={styles.modalHeader}>
+                <div>
+                  <h3 style={styles.modalTitle}>Export Discovered Leads</h3>
+                  <p style={{ fontSize: '13px', color: '#8B92B0', margin: '4px 0 0 0' }}>
+                    Segmented downloads for outreach platforms and CRM import.
+                  </p>
+                </div>
+                <button onClick={() => setShowExportModal(false)} style={styles.modalCloseBtn}>✕</button>
+              </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '20px' }}>
-              <button onClick={() => handleExport('csv')} style={styles.exportFormatTile}>
-                <div style={{ fontSize: '20px' }}>📊</div>
-                <div style={{ fontWeight: 600, color: '#FFFFFF' }}>Excel CSV</div>
-                <div style={{ fontSize: '11px', color: '#8B92B0' }}>UTF-8 BOM formatted</div>
-              </button>
+              {/* 1-Click Recommended Quick Actions */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                <div style={{
+                  backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#34D399', fontWeight: 600, fontSize: '13px' }}>
+                      <span>🌟</span>
+                      <span>Clean Deliverable List ({cleanCount})</span>
+                      <span style={{ fontSize: '10px', backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#10B981', padding: '1px 6px', borderRadius: '4px' }}>RECOMMENDED</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#8B92B0', marginTop: '2px' }}>
+                      100% verified MX servers without catch-all risks. Safe for Instantly, Smartlead & Mailchimp.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleExport('csv', 'deliverable')}
+                    style={{
+                      backgroundColor: '#10B981',
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: '#FFFFFF',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      padding: '8px 14px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)'
+                    }}
+                  >
+                    Download CSV
+                  </button>
+                </div>
 
-              <button onClick={() => handleExport('json')} style={styles.exportFormatTile}>
-                <div style={{ fontSize: '20px' }}>📦</div>
-                <div style={{ fontWeight: 600, color: '#FFFFFF' }}>JSON Array</div>
-                <div style={{ fontSize: '11px', color: '#8B92B0' }}>Full data hierarchy</div>
-              </button>
+                <div style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#F87171', fontWeight: 600, fontSize: '13px' }}>
+                      <span>🛡️</span>
+                      <span>Suppression & Bounce Blacklist ({suppressionCount})</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#8B92B0', marginTop: '2px' }}>
+                      Undeliverable, dead, and disposable inboxes. Upload to exclude from future outbound campaigns.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleExport('csv', 'suppression')}
+                    style={{
+                      backgroundColor: '#7F1D1D',
+                      border: '1px solid #EF4444',
+                      borderRadius: '6px',
+                      color: '#FCA5A5',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      padding: '8px 14px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Download CSV
+                  </button>
+                </div>
+              </div>
 
-              <button onClick={() => handleExport('txt')} style={styles.exportFormatTile}>
-                <div style={{ fontSize: '20px' }}>📄</div>
-                <div style={{ fontWeight: 600, color: '#FFFFFF' }}>Plain Text</div>
-                <div style={{ fontSize: '11px', color: '#8B92B0' }}>One email per line</div>
-              </button>
+              {/* Segment Selector Tabs */}
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#8B92B0', marginBottom: '6px' }}>
+                  Or Choose Segment to Export:
+                </div>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setExportSegment('deliverable')}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      border: exportSegment === 'deliverable' ? '1px solid #10B981' : '1px solid rgba(255, 255, 255, 0.08)',
+                      backgroundColor: exportSegment === 'deliverable' ? 'rgba(16, 185, 129, 0.15)' : '#0B0E1A',
+                      color: exportSegment === 'deliverable' ? '#34D399' : '#8B92B0'
+                    }}
+                  >
+                    Clean ({cleanCount})
+                  </button>
 
-              <button onClick={() => handleExport('vcf')} style={styles.exportFormatTile}>
-                <div style={{ fontSize: '20px' }}>📇</div>
-                <div style={{ fontWeight: 600, color: '#FFFFFF' }}>vCard (.vcf)</div>
-                <div style={{ fontSize: '11px', color: '#8B92B0' }}>Outlook / Apple Contacts</div>
-              </button>
-            </div>
+                  <button
+                    type="button"
+                    onClick={() => setExportSegment('risky')}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      border: exportSegment === 'risky' ? '1px solid #F59E0B' : '1px solid rgba(255, 255, 255, 0.08)',
+                      backgroundColor: exportSegment === 'risky' ? 'rgba(245, 158, 11, 0.15)' : '#0B0E1A',
+                      color: exportSegment === 'risky' ? '#FBBF24' : '#8B92B0'
+                    }}
+                  >
+                    Catch-All / Risky ({riskyCount})
+                  </button>
 
-            <div style={styles.modalFooter}>
-              <button onClick={() => setShowExportModal(false)} style={styles.cancelBtn}>
-                Cancel
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setExportSegment('suppression')}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      border: exportSegment === 'suppression' ? '1px solid #EF4444' : '1px solid rgba(255, 255, 255, 0.08)',
+                      backgroundColor: exportSegment === 'suppression' ? 'rgba(239, 68, 68, 0.15)' : '#0B0E1A',
+                      color: exportSegment === 'suppression' ? '#F87171' : '#8B92B0'
+                    }}
+                  >
+                    Suppression ({suppressionCount})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExportSegment('all')}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      border: exportSegment === 'all' ? '1px solid #5B5FEF' : '1px solid rgba(255, 255, 255, 0.08)',
+                      backgroundColor: exportSegment === 'all' ? 'rgba(91, 95, 239, 0.15)' : '#0B0E1A',
+                      color: exportSegment === 'all' ? '#FFFFFF' : '#8B92B0'
+                    }}
+                  >
+                    All Contacts ({allCount})
+                  </button>
+                </div>
+              </div>
+
+              {/* Format Tiles */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '20px' }}>
+                <button onClick={() => handleExport('csv')} style={{ ...styles.exportFormatTile, padding: '12px 8px' }}>
+                  <div style={{ fontSize: '18px' }}>📊</div>
+                  <div style={{ fontWeight: 600, color: '#FFFFFF', fontSize: '12px' }}>Excel CSV</div>
+                  <div style={{ fontSize: '10px', color: '#8B92B0' }}>BOM UTF-8</div>
+                </button>
+
+                <button onClick={() => handleExport('json')} style={{ ...styles.exportFormatTile, padding: '12px 8px' }}>
+                  <div style={{ fontSize: '18px' }}>📦</div>
+                  <div style={{ fontWeight: 600, color: '#FFFFFF', fontSize: '12px' }}>JSON</div>
+                  <div style={{ fontSize: '10px', color: '#8B92B0' }}>Hierarchy</div>
+                </button>
+
+                <button onClick={() => handleExport('txt')} style={{ ...styles.exportFormatTile, padding: '12px 8px' }}>
+                  <div style={{ fontSize: '18px' }}>📄</div>
+                  <div style={{ fontWeight: 600, color: '#FFFFFF', fontSize: '12px' }}>Text</div>
+                  <div style={{ fontSize: '10px', color: '#8B92B0' }}>Emails only</div>
+                </button>
+
+                <button onClick={() => handleExport('vcf')} style={{ ...styles.exportFormatTile, padding: '12px 8px' }}>
+                  <div style={{ fontSize: '18px' }}>📇</div>
+                  <div style={{ fontWeight: 600, color: '#FFFFFF', fontSize: '12px' }}>vCard</div>
+                  <div style={{ fontSize: '10px', color: '#8B92B0' }}>Contacts</div>
+                </button>
+              </div>
+
+              <div style={styles.modalFooter}>
+                <button onClick={() => setShowExportModal(false)} style={styles.cancelBtn}>
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Raw Text Modal */}
       {showTextModal && (

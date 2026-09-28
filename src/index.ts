@@ -53,7 +53,9 @@ export {
   toJSON,
   toPlainText,
   toVCard,
-  formatRecords
+  formatRecords,
+  filterRecordsBySegment,
+  type ExportSegment
 } from './utils/formatters';
 
 export type {

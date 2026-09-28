@@ -2,11 +2,74 @@ import { ScrapedEmailRecord } from '../types/record';
 import { isDisposableDomain } from './emailExtractor';
 
 export interface VerificationResult {
-  status: 'deliverable' | 'undeliverable' | 'disposable';
+  status: 'deliverable' | 'undeliverable' | 'disposable' | 'risky';
   mxRecords: string[];
+  provider?: string;
+  isCatchAll?: boolean;
 }
 
 const mxCache = new Map<string, VerificationResult>();
+
+/**
+ * Fingerprints Email Service Provider and assesses Catch-All / Accept-All security gateway risk
+ */
+export function detectMailProvider(mxRecords: string[]): { provider: string; isCatchAll: boolean } {
+  if (!mxRecords || mxRecords.length === 0) {
+    return { provider: 'Unknown', isCatchAll: false };
+  }
+  const joined = mxRecords.join(' ').toLowerCase();
+
+  // Enterprise Security Gateways (known to operate Catch-All / Accept-All policies)
+  if (joined.includes('pphosted.com') || joined.includes('proofpoint')) {
+    return { provider: 'Proofpoint Enterprise Gateway', isCatchAll: true };
+  }
+  if (joined.includes('mimecast.com')) {
+    return { provider: 'Mimecast Gateway', isCatchAll: true };
+  }
+  if (joined.includes('barracudanetworks.com') || joined.includes('barracuda')) {
+    return { provider: 'Barracuda Sentinel', isCatchAll: true };
+  }
+  if (joined.includes('ironport') || joined.includes('iphmx.com')) {
+    return { provider: 'Cisco IronPort Gateway', isCatchAll: true };
+  }
+  if (joined.includes('tmes.trendmicro.com') || joined.includes('trendmicro')) {
+    return { provider: 'Trend Micro Email Security', isCatchAll: true };
+  }
+
+  // Major ESPs
+  if (joined.includes('google.com') || joined.includes('googlemail.com') || joined.includes('aspmx.l.google.com')) {
+    return { provider: 'Google Workspace', isCatchAll: false };
+  }
+  if (joined.includes('outlook.com') || joined.includes('protection.outlook.com') || joined.includes('lync.com')) {
+    return { provider: 'Microsoft 365 / Exchange', isCatchAll: false };
+  }
+  if (joined.includes('zoho.com') || joined.includes('zoho.eu')) {
+    return { provider: 'Zoho Mail', isCatchAll: false };
+  }
+  if (joined.includes('amazonaws.com') || joined.includes('awses')) {
+    return { provider: 'Amazon SES', isCatchAll: false };
+  }
+  if (joined.includes('secureserver.net')) {
+    return { provider: 'GoDaddy / Secureserver', isCatchAll: false };
+  }
+  if (joined.includes('ovh.net')) {
+    return { provider: 'OVHcloud Mail', isCatchAll: false };
+  }
+  if (joined.includes('protonmail.ch') || joined.includes('proton.me')) {
+    return { provider: 'ProtonMail', isCatchAll: false };
+  }
+  if (joined.includes('fastmail.com')) {
+    return { provider: 'Fastmail', isCatchAll: false };
+  }
+  if (joined.includes('yahoodns.net')) {
+    return { provider: 'Yahoo Mail', isCatchAll: false };
+  }
+  if (joined.includes('icloud.com') || joined.includes('apple.com')) {
+    return { provider: 'Apple iCloud Mail', isCatchAll: false };
+  }
+
+  return { provider: 'Custom / Self-Hosted Server', isCatchAll: false };
+}
 
 /**
  * Resolves MX records via DNS-over-HTTPS (DoH) with multi-provider fallback (Cloudflare -> Google)
@@ -23,7 +86,9 @@ export async function verifyDomainMx(domain: string): Promise<VerificationResult
   if (isDisposableDomain(cleanDomain)) {
     const res: VerificationResult = {
       status: 'disposable',
-      mxRecords: []
+      mxRecords: [],
+      provider: 'Disposable Mail Service',
+      isCatchAll: false
     };
     mxCache.set(cleanDomain, res);
     return res;
@@ -45,9 +110,12 @@ export async function verifyDomainMx(domain: string): Promise<VerificationResult
           .map((a: any) => String(a.data).trim());
 
         if (mxList.length > 0) {
+          const { provider, isCatchAll } = detectMailProvider(mxList);
           const result: VerificationResult = {
-            status: 'deliverable',
-            mxRecords: mxList
+            status: isCatchAll ? 'risky' : 'deliverable',
+            mxRecords: mxList,
+            provider,
+            isCatchAll
           };
           mxCache.set(cleanDomain, result);
           return result;
@@ -74,9 +142,12 @@ export async function verifyDomainMx(domain: string): Promise<VerificationResult
           .map((a: any) => String(a.data).trim());
 
         if (mxList.length > 0) {
+          const { provider, isCatchAll } = detectMailProvider(mxList);
           const result: VerificationResult = {
-            status: 'deliverable',
-            mxRecords: mxList
+            status: isCatchAll ? 'risky' : 'deliverable',
+            mxRecords: mxList,
+            provider,
+            isCatchAll
           };
           mxCache.set(cleanDomain, result);
           return result;
@@ -90,7 +161,9 @@ export async function verifyDomainMx(domain: string): Promise<VerificationResult
   // If no MX records found or resolution failed
   const undeliverableResult: VerificationResult = {
     status: 'undeliverable',
-    mxRecords: []
+    mxRecords: [],
+    provider: 'None (No MX Records Found)',
+    isCatchAll: false
   };
   mxCache.set(cleanDomain, undeliverableResult);
   return undeliverableResult;
@@ -122,7 +195,16 @@ export async function verifyEmailRecords(
     return {
       ...r,
       mxStatus: v ? v.status : 'undeliverable',
-      mxRecords: v ? v.mxRecords : []
+      mxRecords: v ? v.mxRecords : [],
+      provider: v?.provider || 'Unknown',
+      isCatchAll: Boolean(v?.isCatchAll),
+      validity: {
+        syntax: r.validity?.syntax ?? true,
+        tld: r.validity?.tld ?? true,
+        isDisposable: v?.status === 'disposable',
+        isCatchAll: Boolean(v?.isCatchAll),
+        provider: v?.provider
+      }
     };
   });
 }

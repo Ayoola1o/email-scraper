@@ -8,6 +8,7 @@ import {
   scrapeEmailRecordsFromWebsite,
   extractEmailRecordsFromHtml,
   formatRecords,
+  filterRecordsBySegment,
   ScrapedEmailRecord,
   CrawlProgress
 } from '../index';
@@ -437,7 +438,7 @@ app.post('/api/scrape/text', (req: Request, res: Response) => {
  */
 app.post('/api/export', (req: Request, res: Response) => {
   try {
-    const { records, format = 'csv', fields } = req.body;
+    const { records, format = 'csv', fields, segment = 'all' } = req.body;
     if (!Array.isArray(records)) {
       return res.status(400).json({ error: 'Records array is required' });
     }
@@ -451,11 +452,14 @@ app.post('/api/export', (req: Request, res: Response) => {
       return res.status(400).json({ error: `Invalid format. Must be one of: ${validFormats.join(', ')}` });
     }
 
-    const result = formatRecords(records, format as any, Array.isArray(fields) ? fields : undefined);
-    const filename = `scraped_emails_${Date.now()}.${result.extension}`;
+    const { filtered, prefix, label } = filterRecordsBySegment(records, segment);
+    const result = formatRecords(filtered, format as any, Array.isArray(fields) ? fields : undefined);
+    const filename = `${prefix}_${Date.now()}.${result.extension}`;
 
     res.setHeader('Content-Type', result.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('X-Export-Segment', label);
+    res.setHeader('X-Export-Count', String(filtered.length));
     return res.send(result.data);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

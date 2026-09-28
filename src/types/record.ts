@@ -39,7 +39,13 @@ export interface ScrapedEmailRecord {
     syntax: boolean;
     tld: boolean;
     isDisposable: boolean;
+    isCatchAll?: boolean;
+    provider?: string;
   };
+  /** Identified Email Service Provider / Mail Server (e.g. Google Workspace, Microsoft 365, Proofpoint) */
+  provider?: string;
+  /** Whether the domain mail server operates as a Catch-All / Accept-All gateway */
+  isCatchAll?: boolean;
   /** Associated company or organization name */
   company?: string;
   /** Categorization: Business, Personal, or General */

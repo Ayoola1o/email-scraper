@@ -57,6 +57,25 @@ async function runServerTests() {
     console.assert(csvBuf[0] === 0xEF && csvBuf[1] === 0xBB && csvBuf[2] === 0xBF, 'CSV download buffer must have UTF-8 BOM bytes (0xEF, 0xBB, 0xBF)');
     console.log('   ✓ Export API generated valid Excel CSV with UTF-8 BOM.');
 
+    // 5b. Segmented Export API
+    console.log('5b. Testing POST /api/export with segment="clean"...');
+    const segRes = await fetch('http://localhost:3001/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        records: [
+          { email: 'valid@company.com', domain: 'company.com', mxStatus: 'deliverable' },
+          { email: 'bad@dead.xyz', domain: 'dead.xyz', mxStatus: 'undeliverable' }
+        ],
+        format: 'csv',
+        segment: 'clean'
+      })
+    });
+    const segText = await segRes.text();
+    console.assert(segText.includes('valid@company.com') && !segText.includes('bad@dead.xyz'), 'Clean export should only include deliverable contacts');
+    console.assert(segRes.headers.get('content-disposition').includes('clean_deliverable_leads'), 'Header should specify clean_deliverable_leads filename');
+    console.log('   ✓ Segmented Export API accurately isolated Clean Deliverable leads.');
+
     // 6. Deep Crawl API
     console.log('6. Testing POST /api/scrape/crawl...');
     const crawlRes = await fetch('http://localhost:3001/api/scrape/crawl', {

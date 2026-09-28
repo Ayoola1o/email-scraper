@@ -3,11 +3,14 @@ import { ScrapedEmailRecord } from '../types/record';
 export type ExportableField =
   | 'email'
   | 'name'
+  | 'company'
   | 'jobTitle'
   | 'phone'
   | 'type'
   | 'domain'
   | 'mxStatus'
+  | 'provider'
+  | 'isCatchAll'
   | 'linkedin'
   | 'sourceUrl'
   | 'pageTitle'
@@ -17,11 +20,14 @@ export type ExportableField =
 export const DEFAULT_FIELDS: ExportableField[] = [
   'email',
   'name',
+  'company',
   'jobTitle',
   'phone',
   'type',
   'domain',
   'mxStatus',
+  'provider',
+  'isCatchAll',
   'sourceUrl',
   'pageTitle',
   'contextSnippet',
@@ -31,17 +37,58 @@ export const DEFAULT_FIELDS: ExportableField[] = [
 export const FIELD_LABELS: Record<ExportableField, string> = {
   email: 'Email',
   name: 'Name',
+  company: 'Company',
   jobTitle: 'Job Title',
   phone: 'Phone Number',
   type: 'Type',
   domain: 'Domain',
   mxStatus: 'MX Deliverability',
+  provider: 'Mail Provider',
+  isCatchAll: 'Catch-All Risk',
   linkedin: 'LinkedIn Profile',
   sourceUrl: 'Source URL',
   pageTitle: 'Page Title',
   contextSnippet: 'Context Snippet',
   discoveredAt: 'Discovered At'
 };
+
+export type ExportSegment = 'all' | 'clean' | 'deliverable' | 'suppression' | 'bad' | 'risky' | 'catch-all';
+
+/**
+ * Filters records by deliverability segment for targeted outreach or bounce suppression
+ */
+export function filterRecordsBySegment(
+  records: ScrapedEmailRecord[],
+  segment: string = 'all'
+): { filtered: ScrapedEmailRecord[]; prefix: string; label: string } {
+  const norm = (segment || 'all').toLowerCase();
+  if (norm === 'clean' || norm === 'deliverable') {
+    return {
+      filtered: records.filter(r => r.mxStatus === 'deliverable' && !r.isCatchAll),
+      prefix: 'clean_deliverable_leads',
+      label: 'Clean Deliverable Leads'
+    };
+  }
+  if (norm === 'suppression' || norm === 'bad' || norm === 'blacklist') {
+    return {
+      filtered: records.filter(r => r.mxStatus === 'undeliverable' || r.mxStatus === 'disposable'),
+      prefix: 'suppression_blacklist',
+      label: 'Suppression & Bounce Blacklist'
+    };
+  }
+  if (norm === 'risky' || norm === 'catch-all' || norm === 'catchall') {
+    return {
+      filtered: records.filter(r => r.mxStatus === 'risky' || r.isCatchAll),
+      prefix: 'catch_all_risky_leads',
+      label: 'Catch-All / Risky Leads'
+    };
+  }
+  return {
+    filtered: records,
+    prefix: 'all_discovered_leads',
+    label: 'All Leads'
+  };
+}
 
 /**
  * Escapes a field for safe CSV representation
@@ -65,6 +112,8 @@ export function toCSV(records: ScrapedEmailRecord[], selectedFields: ExportableF
       let val: any;
       if (f === 'linkedin') {
         val = r.socials?.linkedin || '';
+      } else if (f === 'isCatchAll') {
+        val = r.isCatchAll ? 'Yes (Accept-All Gateway)' : 'No';
       } else {
         val = r[f as keyof ScrapedEmailRecord];
       }
