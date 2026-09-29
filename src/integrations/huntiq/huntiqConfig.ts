@@ -95,11 +95,23 @@ export class HuntIQConfigManager {
           return { valid: false, error: `Invalid apiUrl protocol "${parsedUrl.protocol}". Only http: and https: are allowed.` };
         }
 
+        const hostname = parsedUrl.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+        if (
+          hostname === '169.254.169.254' ||
+          hostname === 'metadata.google.internal' ||
+          hostname === 'instance-data'
+        ) {
+          return { valid: false, error: 'HUNTIQ_API_URL cannot point to cloud metadata endpoints (SSRF protection)' };
+        }
+
         // In production, enforce HTTPS unless loopback/local
         const isProduction = process.env.NODE_ENV === 'production';
-        const isLoopback = parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1' || parsedUrl.hostname === '::1';
+        const isLoopback = hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '127.0.0.1' || hostname === '::1';
         if (isProduction && parsedUrl.protocol !== 'https:' && !isLoopback) {
           return { valid: false, error: 'HUNTIQ_API_URL must use HTTPS in production environments' };
+        }
+        if (isProduction && isLoopback) {
+          return { valid: false, error: 'HUNTIQ_API_URL cannot target localhost in production environments' };
         }
 
         cleanUpdates.apiUrl = trimmedUrl;

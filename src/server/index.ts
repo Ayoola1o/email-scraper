@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import {
   scrapeEmailRecordsFromUrl,
   scrapeEmailRecordsFromWebsite,
@@ -23,6 +23,7 @@ import {
 } from '../utils/security';
 
 const app = express();
+app.disable('x-powered-by');
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Configurable CORS with production origin safeguards
@@ -48,6 +49,11 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; connect-src 'self'");
+  res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
   next();
 });
 
@@ -347,6 +353,10 @@ app.post('/api/scrape/batch', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'An array of URLs is required' });
     }
 
+    if (urls.length > 100) {
+      return res.status(400).json({ error: 'Batch scrape limit exceeded. Maximum 100 URLs per batch request.' });
+    }
+
     const uniqueMap = new Map<string, ScrapedEmailRecord>();
     const resultsSummary: Array<{ url: string; success: boolean; emailCount: number; error?: string }> = [];
 
@@ -470,6 +480,20 @@ app.post('/api/export', (req: Request, res: Response) => {
 /* HUNTIQ Dedicated Integration Endpoints (Data Acquisition Service v1.0)   */
 /* ========================================================================= */
 
+function safeCompare(a: string, b: string): boolean {
+  try {
+    const bufA = Buffer.from(a, 'utf8');
+    const bufB = Buffer.from(b, 'utf8');
+    if (bufA.length !== bufB.length) {
+      timingSafeEqual(bufA, bufA);
+      return false;
+    }
+    return timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Administrator authorization check for sensitive server configuration endpoints
  */
@@ -479,19 +503,26 @@ function isAuthorizedAdmin(req: Request): boolean {
   if (adminKey) {
     const authHeader = req.headers['authorization'];
     const xAdminKey = req.headers['x-admin-key'];
-    if (authHeader && (authHeader === `Bearer ${adminKey}` || authHeader === adminKey)) {
+
+    if (typeof authHeader === 'string') {
+      const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : authHeader.trim();
+      if (safeCompare(token, adminKey)) {
+        return true;
+      }
+    }
+
+    if (typeof xAdminKey === 'string' && safeCompare(xAdminKey.trim(), adminKey)) {
       return true;
     }
-    if (xAdminKey && xAdminKey === adminKey) {
-      return true;
-    }
+
     return false;
   }
 
-  // In test and local development, allow localhost loopback when no admin secret is configured
+  // In test and local development, allow actual socket loopback when no admin secret is configured
+  // Note: req.hostname is client-controlled via the Host header and must NOT be trusted for authorization
   const isDevOrTest = process.env.NODE_ENV !== 'production';
-  const clientIp = req.ip || req.socket.remoteAddress || '';
-  const isLoopback = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '::ffff:127.0.0.1' || req.hostname === 'localhost';
+  const remoteIp = req.socket.remoteAddress || req.ip || '';
+  const isLoopback = remoteIp === '127.0.0.1' || remoteIp === '::1' || remoteIp === '::ffff:127.0.0.1';
 
   return isDevOrTest && isLoopback;
 }

@@ -101,6 +101,15 @@ export interface AppNotification {
   read: boolean;
 }
 
+function sanitizeSafeHttpUrl(url?: string): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return null;
+}
+
 // Initial high-fidelity discovered records matching "Email scraper result page.png"
 const INITIAL_DISCOVERED_RECORDS: ScrapedEmailRecord[] = [
   {
@@ -3863,14 +3872,23 @@ unreachable@fakeinvalidhost982348.com
                   <span style={{ color: '#8B92B0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span>🔗</span> Source URL
                   </span>
-                  <a
-                    href={activeDetail.sourceUrl || `https://${activeDetail.domain}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: '#5B5FEF', textDecoration: 'none', maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  >
-                    {activeDetail.sourceUrl || `https://${activeDetail.domain}`}
-                  </a>
+                  {(() => {
+                    const safeUrl = sanitizeSafeHttpUrl(activeDetail.sourceUrl) || (activeDetail.domain ? `https://${activeDetail.domain}` : null);
+                    return safeUrl ? (
+                      <a
+                        href={safeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#5B5FEF', textDecoration: 'none', maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      >
+                        {activeDetail.sourceUrl || `https://${activeDetail.domain}`}
+                      </a>
+                    ) : (
+                      <span style={{ color: '#8B92B0', maxWidth: '170px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {activeDetail.sourceUrl || activeDetail.domain || '—'}
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
@@ -4125,29 +4143,35 @@ unreachable@fakeinvalidhost982348.com
                     <span>Export Contact</span>
                   </button>
 
-                  <a
-                    href={activeDetail.sourceUrl || `https://${activeDetail.domain}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      padding: '9px',
-                      backgroundColor: '#0B0E1A',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
-                      borderRadius: '8px',
-                      color: '#FFFFFF',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      textDecoration: 'none',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <span>🔗</span>
-                    <span>View Source</span>
-                  </a>
+                  {(() => {
+                    const safeUrl = sanitizeSafeHttpUrl(activeDetail.sourceUrl) || (activeDetail.domain ? `https://${activeDetail.domain}` : null);
+                    return (
+                      <a
+                        href={safeUrl || '#'}
+                        target={safeUrl ? '_blank' : undefined}
+                        rel="noopener noreferrer"
+                        onClick={e => { if (!safeUrl) e.preventDefault(); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          padding: '9px',
+                          backgroundColor: '#0B0E1A',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: '8px',
+                          color: safeUrl ? '#FFFFFF' : '#6B7280',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          textDecoration: 'none',
+                          cursor: safeUrl ? 'pointer' : 'default'
+                        }}
+                      >
+                        <span>🔗</span>
+                        <span>View Source</span>
+                      </a>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -5597,11 +5621,16 @@ unreachable@fakeinvalidhost982348.com
                           </td>
                           <td style={{ ...styles.jobTd, color: '#8B92B0' }}>{r.domain || '—'}</td>
                           <td style={{ ...styles.jobTd, fontSize: '12px' }}>
-                            {r.sourceUrl ? (
-                              <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#5B5FEF', textDecoration: 'none', fontWeight: 500 }}>
-                                Link ↗
-                              </a>
-                            ) : '—'}
+                            {(() => {
+                              const safeUrl = sanitizeSafeHttpUrl(r.sourceUrl);
+                              return safeUrl ? (
+                                <a href={safeUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#5B5FEF', textDecoration: 'none', fontWeight: 500 }}>
+                                  Link ↗
+                                </a>
+                              ) : (
+                                <span>—</span>
+                              );
+                            })()}
                           </td>
                         </tr>
                       );

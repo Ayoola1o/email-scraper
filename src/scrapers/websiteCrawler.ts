@@ -2,6 +2,7 @@ import { Browser } from '../types/browser';
 import { scrapeEmailsFromPage } from './webpageScraper';
 import { extractAndNormalizeEmails, extractEmailRecordsFromHtml, extractPageTitle } from '../utils/emailExtractor';
 import { ScrapedEmailRecord } from '../types/record';
+import { validateSafeScrapeUrl, safeFetch } from '../utils/security';
 
 /**
  * Real-time crawl progress event data
@@ -161,6 +162,13 @@ export async function scrapeEmailRecordsFromWebsite(
       let pageRecords: ScrapedEmailRecord[] = [];
 
       if (useBrowser && browser) {
+        const validation = await validateSafeScrapeUrl(url, {
+          allowLocalhost: process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test'
+        });
+        if (!validation.safe) {
+          throw new Error(`SSRF blocked crawl to unsafe URL: ${validation.error || url}`);
+        }
+
         const page = await browser.newPage();
         try {
           await page.goto(url, { waitUntil, timeout });
@@ -171,7 +179,7 @@ export async function scrapeEmailRecordsFromWebsite(
           await page.close();
         }
       } else {
-        const fetchResult = await (await import('../utils/security')).safeFetch(url, {
+        const fetchResult = await safeFetch(url, {
           timeout,
           userAgent,
           allowLocalhost: process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test'

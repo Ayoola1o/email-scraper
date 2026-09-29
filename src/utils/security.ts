@@ -67,22 +67,29 @@ export function parseAndValidateIpv4(ipStr: string): {
 export function isRestrictedIpAddress(ip: string): boolean {
   if (!ip || typeof ip !== 'string') return true;
 
-  const normalized = ip.trim().toLowerCase();
+  const normalized = ip.trim().toLowerCase().replace(/^\[|\]$/g, '');
 
-  // IPv6 Loopback / Unspecified / Link-local / Unique Local (ULA)
-  if (normalized === '::1' || normalized === '::') return true;
-  if (normalized.startsWith('fe80:')) return true; // IPv6 link-local
-  if (normalized.startsWith('fc00:') || normalized.startsWith('fd00:')) return true; // IPv6 ULA
+  // IPv6 Loopback / Unspecified / Link-local / Unique Local (ULA) / Multicast / Doc / Discard / 6to4
+  if (normalized === '::1' || normalized === '::' || normalized === '0:0:0:0:0:0:0:0' || normalized === '0:0:0:0:0:0:0:1') return true;
+  if (/^fe[89ab][0-9a-f]{0,2}:/i.test(normalized) || normalized.startsWith('fe80:')) return true; // IPv6 link-local fe80::/10
+  if (/^f[cd][0-9a-f]{0,2}:/i.test(normalized) || normalized.startsWith('fc') || normalized.startsWith('fd')) return true; // IPv6 ULA fc00::/7
+  if (/^ff[0-9a-f]{0,2}:/i.test(normalized) || normalized.startsWith('ff')) return true; // IPv6 multicast ff00::/8
+  if (normalized.startsWith('2001:db8:')) return true; // IPv6 documentation
+  if (normalized.startsWith('100::')) return true; // Discard-only
+  if (normalized.startsWith('2002:')) return true; // 6to4
 
   // Normalize IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
-  const ipv4 = normalized.startsWith('::ffff:') ? normalized.substring(7) : normalized;
+  let ipv4 = normalized;
+  if (normalized.startsWith('::ffff:')) {
+    ipv4 = normalized.substring(7);
+  }
 
   const parsed = parseAndValidateIpv4(ipv4);
   if (parsed.isIpPattern) {
     if (!parsed.valid || !parsed.octets) {
       return true; // Malformed IPv4 is always restricted
     }
-    const [a, b, c, d] = parsed.octets;
+    const [a, b, c] = parsed.octets;
 
     // 0.0.0.0/8 (Current network / broadcast)
     if (a === 0) return true;
@@ -104,6 +111,27 @@ export function isRestrictedIpAddress(ip: string): boolean {
 
     // 100.64.0.0/10 (Carrier-Grade NAT: 100.64.0.0 - 100.127.255.255)
     if (a === 100 && b >= 64 && b <= 127) return true;
+
+    // 192.0.0.0/24 (IETF Protocol Assignments)
+    if (a === 192 && b === 0 && c === 0) return true;
+
+    // 192.0.2.0/24 (TEST-NET-1)
+    if (a === 192 && b === 0 && c === 2) return true;
+
+    // 198.51.100.0/24 (TEST-NET-2)
+    if (a === 198 && b === 51 && c === 100) return true;
+
+    // 203.0.113.0/24 (TEST-NET-3)
+    if (a === 203 && b === 0 && c === 113) return true;
+
+    // 198.18.0.0/15 (Network Benchmark Tests: 198.18.0.0 - 198.19.255.255)
+    if (a === 198 && (b === 18 || b === 19)) return true;
+
+    // 224.0.0.0/4 (Multicast: 224.0.0.0 - 239.255.255.255)
+    if (a >= 224 && a <= 239) return true;
+
+    // 240.0.0.0/4 (Reserved / Future Use / Broadcast: 240.0.0.0 - 255.255.255.255)
+    if (a >= 240) return true;
 
     return false;
   }
@@ -134,7 +162,8 @@ export async function validateSafeScrapeUrl(
     return { safe: false, error: `Invalid protocol "${parsed.protocol}". Only http: and https: are allowed.` };
   }
 
-  const hostname = parsed.hostname.toLowerCase();
+  const rawHostname = parsed.hostname.toLowerCase();
+  const hostname = rawHostname.replace(/^\[|\]$/g, '');
 
   // Explicit check for cloud metadata hostnames
   if (
@@ -145,7 +174,7 @@ export async function validateSafeScrapeUrl(
     return { safe: false, error: 'Access to cloud metadata endpoints is strictly forbidden (SSRF protection).' };
   }
 
-  // Strict IPv4 validation: reject malformed IP addresses (such as 999.999.999.999) without DNS lookup
+  // Strict IPv4 validation: reject malformed IP addresses without DNS lookup
   const ipCheck = parseAndValidateIpv4(hostname);
   if (ipCheck.isIpPattern) {
     if (!ipCheck.valid || !ipCheck.octets) {
@@ -156,7 +185,7 @@ export async function validateSafeScrapeUrl(
 
     // Loopback 127.0.0.0/8 check
     if (a === 127) {
-      const isDemoEndpoint = parsed.pathname.startsWith('/api/demo') || parsed.pathname === '/';
+      const isDemoEndpoint = parsed.pathname === '/api/demo' || parsed.pathname.startsWith('/api/demo/');
       const allowLocal = options.allowLocalhost !== undefined
         ? options.allowLocalhost
         : (isDemoEndpoint || process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test');
@@ -179,9 +208,9 @@ export async function validateSafeScrapeUrl(
     return { safe: true, url: parsed };
   }
 
-  // Localhost and localhost subdomain check
+  // Localhost, localhost subdomain, and IPv6 loopback check
   const isLocalHost = hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '::1';
-  const isDemoEndpoint = isLocalHost && (parsed.pathname.startsWith('/api/demo') || parsed.pathname === '/');
+  const isDemoEndpoint = isLocalHost && (parsed.pathname === '/api/demo' || parsed.pathname.startsWith('/api/demo/'));
   const allowLocal = options.allowLocalhost !== undefined
     ? options.allowLocalhost
     : (isDemoEndpoint || process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test');
@@ -193,13 +222,29 @@ export async function validateSafeScrapeUrl(
     return { safe: true, url: parsed };
   }
 
-  // Resolve hostname via DNS to prevent DNS rebinding / private IP resolutions
+  // Resolve hostname via dual-stack DNS (IPv4 and IPv6) to prevent DNS rebinding / private IP resolutions
   try {
-    const addresses = await dns.resolve4(hostname).catch(async () => {
-      return await dns.resolve6(hostname).catch(() => []);
-    });
+    const [ipv4Addrs, ipv6Addrs] = await Promise.all([
+      dns.resolve4(hostname).catch(() => [] as string[]),
+      dns.resolve6(hostname).catch(() => [] as string[])
+    ]);
 
-    for (const addr of addresses) {
+    const allAddresses = [...ipv4Addrs, ...ipv6Addrs];
+    if (allAddresses.length === 0) {
+      // Try dns.lookup as fallback for systems with non-standard local hosts
+      const lookupResult = await dns.lookup(hostname, { all: true }).catch(() => []);
+      if (lookupResult && lookupResult.length > 0) {
+        for (const item of lookupResult) {
+          allAddresses.push(item.address);
+        }
+      }
+    }
+
+    if (allAddresses.length === 0) {
+      return { safe: false, error: `Could not resolve any IP address for host "${hostname}"` };
+    }
+
+    for (const addr of allAddresses) {
       if (isRestrictedIpAddress(addr) && !allowLocal) {
         return {
           safe: false,
@@ -208,7 +253,6 @@ export async function validateSafeScrapeUrl(
       }
     }
   } catch (dnsErr: any) {
-    // DNS resolution failure
     return { safe: false, error: `DNS lookup failed for host "${hostname}": ${dnsErr.message}` };
   }
 
