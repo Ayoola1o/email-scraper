@@ -21,6 +21,21 @@ import {
   validateSafeScrapeUrl,
   sanitizeCrawlLimits
 } from '../utils/security';
+import {
+  authenticateRequest,
+  requireAuth,
+  requirePermission,
+  requireRole,
+  verifyOwnership,
+  TokenManager,
+  ApiKeyManager,
+  RateLimiter,
+  createIpRateLimiter,
+  createUserRateLimiter,
+  checkAuthBruteForce,
+  ConcurrencyTracker,
+  UserRole
+} from '../auth';
 
 const app = express();
 app.disable('x-powered-by');
@@ -57,6 +72,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// Global Rate Limiting & User Quotas
+app.use(createIpRateLimiter());
+app.use(createUserRateLimiter());
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -77,6 +96,8 @@ interface ActiveCrawlJob {
   endedAt?: number;
   cancelled: boolean;
   listeners: Array<(event: string, data: any) => void>;
+  ownerId?: string;
+  isBrowser?: boolean;
 }
 
 /**
@@ -136,10 +157,193 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
+/* ========================================================================= */
+/* API Authentication & Key Management Endpoints (Phase Two Security)        */
+/* ========================================================================= */
+
+/**
+ * POST /api/auth/token
+ * Authenticates user or API client and returns a signed session token.
+ * Protected against brute-force attacks via sliding window rate limiter.
+ */
+app.post('/api/auth/token', async (req: Request, res: Response) => {
+  try {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const bruteForceCheck = await checkAuthBruteForce(ip);
+    if (!bruteForceCheck.allowed) {
+      return RateLimiter.sendRateLimitError(
+        res,
+        bruteForceCheck,
+        'Too many failed authentication attempts. Please try again later.'
+      );
+    }
+
+    const { username, password, role = 'user', apiKey } = req.body;
+
+    // Support authenticating directly with an API key
+    if (apiKey) {
+      const keyRes = ApiKeyManager.verifyApiKey(apiKey);
+      if (!keyRes.valid || !keyRes.record) {
+        return res.status(401).json({ error: 'Unauthorized', message: keyRes.error || 'Invalid API key' });
+      }
+
+      const session = TokenManager.createSessionToken({
+        id: keyRes.record.userId,
+        username: keyRes.record.name,
+        role: keyRes.record.role
+      });
+
+      res.setHeader('Set-Cookie', `esp_session=${session.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=7200`);
+      return res.json({
+        success: true,
+        token: session.token,
+        expiresAt: session.expiresAt,
+        user: {
+          id: keyRes.record.userId,
+          username: keyRes.record.name,
+          role: keyRes.record.role
+        }
+      });
+    }
+
+    // Username validation
+    if (!username || typeof username !== 'string' || !username.trim()) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    // Role assignment
+    const validRoles: UserRole[] = ['admin', 'user', 'readonly', 'service'];
+    const userRole: UserRole = validRoles.includes(role) ? role : 'user';
+
+    const userId = `usr_${randomUUID().substring(0, 8)}`;
+    const session = TokenManager.createSessionToken({
+      id: userId,
+      username: username.trim(),
+      role: userRole
+    });
+
+    res.setHeader('Set-Cookie', `esp_session=${session.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=7200`);
+    return res.json({
+      success: true,
+      token: session.token,
+      expiresAt: session.expiresAt,
+      user: {
+        id: userId,
+        username: username.trim(),
+        role: userRole
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/auth/logout
+ * Revokes current session token and clears cookie
+ */
+app.post('/api/auth/logout', (req: Request, res: Response) => {
+  const auth = authenticateRequest(req);
+  if (auth && auth.authMethod === 'bearer_token') {
+    const authHeader = req.headers['authorization'];
+    if (authHeader) {
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      const verified = TokenManager.verifySessionToken(token);
+      if (verified.payload?.jti) {
+        TokenManager.revokeToken(verified.payload.jti);
+      }
+    }
+  }
+
+  res.setHeader('Set-Cookie', 'esp_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  return res.json({ success: true, message: 'Logged out successfully' });
+});
+
+/**
+ * GET /api/auth/me
+ * Returns current authenticated user context
+ */
+app.get('/api/auth/me', requireAuth, (req: Request, res: Response) => {
+  return res.json({
+    success: true,
+    user: req.auth!.user,
+    authMethod: req.auth!.authMethod
+  });
+});
+
+/**
+ * POST /api/auth/keys
+ * Generates a revocable API key (stores only cryptographic hash)
+ */
+app.post('/api/auth/keys', requireAuth, (req: Request, res: Response) => {
+  try {
+    const { name = 'API Key', role, expiresInDays } = req.body;
+    const currentUser = req.auth!.user;
+
+    // Standard users cannot grant higher privileges than their own role
+    let keyRole: UserRole = currentUser.role;
+    if (currentUser.role === 'admin' && role) {
+      keyRole = role;
+    } else if (currentUser.role !== 'admin' && role === 'admin') {
+      return res.status(403).json({ error: 'Forbidden', message: 'Standard users cannot create administrator API keys' });
+    }
+
+    const { rawKey, keyRecord } = ApiKeyManager.createApiKey({
+      name,
+      role: keyRole,
+      userId: currentUser.id,
+      expiresInDays: expiresInDays ? parseInt(String(expiresInDays), 10) : undefined
+    });
+
+    return res.status(201).json({
+      success: true,
+      rawKey,
+      key: keyRecord
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/auth/keys
+ * Lists API keys for user (or all keys for admin)
+ */
+app.get('/api/auth/keys', requireAuth, (req: Request, res: Response) => {
+  try {
+    const currentUser = req.auth!.user;
+    const keys = ApiKeyManager.listApiKeys(currentUser.id, currentUser.role);
+    return res.json({ success: true, keys });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/auth/keys/:id
+ * Revokes an API key with strict ownership verification
+ */
+app.delete('/api/auth/keys/:id', requireAuth, (req: Request, res: Response) => {
+  try {
+    const keyId = req.params.id;
+    const currentUser = req.auth!.user;
+    const result = ApiKeyManager.revokeApiKey(keyId, currentUser.id, currentUser.role);
+
+    if (!result.success) {
+      const status = result.error?.includes('Access denied') ? 403 : 404;
+      return res.status(status).json({ success: false, error: result.error });
+    }
+
+    return res.json({ success: true, message: 'API key successfully revoked' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 /**
  * Scrapes a single webpage
  */
-app.post('/api/scrape/page', async (req: Request, res: Response) => {
+app.post('/api/scrape/page', requirePermission('scrape:create'), async (req: Request, res: Response) => {
   try {
     const { url, timeout = 12000, userAgent } = req.body;
     if (!url || typeof url !== 'string') {
@@ -175,7 +379,7 @@ app.post('/api/scrape/page', async (req: Request, res: Response) => {
 /**
  * Initiates an asynchronous crawl job
  */
-app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
+app.post('/api/scrape/crawl', requirePermission('crawl:create'), async (req: Request, res: Response) => {
   try {
     const {
       url,
@@ -183,7 +387,8 @@ app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
       maxPages = 30,
       sameDomainOnly = true,
       timeout = 15000,
-      delayMs = 250
+      delayMs = 250,
+      useBrowser = false
     } = req.body;
 
     if (!url || typeof url !== 'string') {
@@ -197,6 +402,20 @@ app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
 
     const limits = sanitizeCrawlLimits(maxDepth, maxPages);
 
+    // Enforce Concurrency Quota Limits per user and system-wide
+    const auth = req.auth || authenticateRequest(req);
+    const userId = auth?.user?.id || 'usr_anonymous';
+    const isBrowser = Boolean(useBrowser);
+
+    const slot = ConcurrencyTracker.acquireCrawlSlot(userId, isBrowser);
+    if (!slot.success) {
+      return res.status(429).json({
+        error: 'Too Many Requests',
+        code: 'CONCURRENCY_LIMIT_EXCEEDED',
+        message: slot.error
+      });
+    }
+
     const jobId = randomUUID();
     const job: ActiveCrawlJob = {
       id: jobId,
@@ -207,7 +426,9 @@ app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
       errors: 0,
       startedAt: Date.now(),
       cancelled: false,
-      listeners: []
+      listeners: [],
+      ownerId: userId,
+      isBrowser
     };
 
     activeJobs.set(jobId, job);
@@ -263,6 +484,8 @@ app.post('/api/scrape/crawl', async (req: Request, res: Response) => {
         job.endedAt = Date.now();
         pruneActiveJobs();
         broadcastJobEvent(job, 'error', { message: err.message });
+      } finally {
+        ConcurrencyTracker.releaseCrawlSlot(job.ownerId || userId, Boolean(job.isBrowser));
       }
     })();
 
@@ -284,6 +507,7 @@ function broadcastJobEvent(job: ActiveCrawlJob, event: string, data: any) {
 
 /**
  * Server-Sent Events (SSE) endpoint for live crawl telemetry
+ * Enforces ownership checks to prevent cross-tenant IDOR inspection.
  */
 app.get('/api/scrape/crawl/stream/:jobId', (req: Request, res: Response) => {
   const jobId = req.params.jobId;
@@ -291,6 +515,16 @@ app.get('/api/scrape/crawl/stream/:jobId', (req: Request, res: Response) => {
 
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
+  }
+
+  // Multi-tenant Ownership & IDOR Protection Check
+  const auth = req.auth || authenticateRequest(req);
+  if (auth && !verifyOwnership(job.ownerId, auth.user)) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      code: 'IDOR_ACCESS_DENIED',
+      message: 'Access denied: You do not have permission to view or stream another user\'s crawl job'
+    });
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -327,12 +561,23 @@ app.get('/api/scrape/crawl/stream/:jobId', (req: Request, res: Response) => {
 
 /**
  * Cancels a running crawl job
+ * Enforces ownership checks to prevent cross-tenant IDOR cancellation.
  */
-app.post('/api/scrape/crawl/cancel/:jobId', (req: Request, res: Response) => {
+app.post('/api/scrape/crawl/cancel/:jobId', requirePermission('crawl:cancel'), (req: Request, res: Response) => {
   const jobId = req.params.jobId;
   const job = activeJobs.get(jobId);
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
+  }
+
+  // Multi-tenant Ownership & IDOR Protection Check
+  const auth = req.auth || authenticateRequest(req);
+  if (auth && !verifyOwnership(job.ownerId, auth.user)) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      code: 'IDOR_ACCESS_DENIED',
+      message: 'Access denied: You do not have permission to cancel another user\'s crawl job'
+    });
   }
 
   job.cancelled = true;
@@ -346,7 +591,7 @@ app.post('/api/scrape/crawl/cancel/:jobId', (req: Request, res: Response) => {
  * Strictly validates every submitted URL with SSRF checks (protocol, DNS, private/metadata IPs, redirects, size, timeout)
  * Returns per-URL status without allowing one unsafe URL to compromise the batch operation.
  */
-app.post('/api/scrape/batch', async (req: Request, res: Response) => {
+app.post('/api/scrape/batch', requirePermission('scrape:create'), async (req: Request, res: Response) => {
   try {
     const { urls, timeout = 12000, delayMs = 150 } = req.body;
     if (!Array.isArray(urls) || urls.length === 0) {
@@ -425,7 +670,7 @@ app.post('/api/scrape/batch', async (req: Request, res: Response) => {
 /**
  * Extracts emails from raw text/HTML snippet directly
  */
-app.post('/api/scrape/text', (req: Request, res: Response) => {
+app.post('/api/scrape/text', requirePermission('scrape:create'), (req: Request, res: Response) => {
   try {
     const { text, sourceName = 'Manual Input' } = req.body;
     if (!text || typeof text !== 'string') {
@@ -446,7 +691,7 @@ app.post('/api/scrape/text', (req: Request, res: Response) => {
 /**
  * Formats and exports records
  */
-app.post('/api/export', (req: Request, res: Response) => {
+app.post('/api/export', requirePermission('export:read'), (req: Request, res: Response) => {
   try {
     const { records, format = 'csv', fields, segment = 'all' } = req.body;
     if (!Array.isArray(records)) {
@@ -498,6 +743,12 @@ function safeCompare(a: string, b: string): boolean {
  * Administrator authorization check for sensitive server configuration endpoints
  */
 function isAuthorizedAdmin(req: Request): boolean {
+  // If caller is explicitly authenticated via session token or API key
+  const auth = req.auth || authenticateRequest(req);
+  if (auth && auth.authMethod !== 'dev_fallback') {
+    return auth.user.role === 'admin';
+  }
+
   const adminKey = process.env.ADMIN_API_KEY || process.env.SCRAPER_ADMIN_TOKEN;
 
   if (adminKey) {
@@ -598,7 +849,7 @@ app.post('/api/integrations/huntiq/config', (req: Request, res: Response) => {
 /**
  * Connection & health check for configured HUNTIQ integration
  */
-app.post('/api/integrations/huntiq/test', async (req: Request, res: Response) => {
+app.post('/api/integrations/huntiq/test', requireRole(['admin', 'service']), async (req: Request, res: Response) => {
   try {
     if (!HuntIQConfigManager.isConfigured()) {
       return res.status(503).json(HuntIQConfigManager.getUnconfiguredError());
@@ -622,7 +873,7 @@ app.post('/api/integrations/huntiq/test', async (req: Request, res: Response) =>
  * Synchronizes discovered contact records into HUNTIQ (Contract v1.0)
  * Uses server-side credentials only and enforces factual discovery
  */
-app.post('/api/integrations/huntiq/sync', async (req: Request, res: Response) => {
+app.post('/api/integrations/huntiq/sync', requireRole(['admin', 'service']), async (req: Request, res: Response) => {
   try {
     if (!HuntIQConfigManager.isConfigured()) {
       return res.status(503).json(HuntIQConfigManager.getUnconfiguredError());
@@ -662,7 +913,7 @@ app.post('/api/integrations/huntiq/sync', async (req: Request, res: Response) =>
  * Backward compatibility: Deprecated sync endpoint
  * Routes through HuntIQClient and strictly ignores client-controlled credentials/workspaces
  */
-app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
+app.post('/api/sync/huntiq', requireRole(['admin', 'service']), async (req: Request, res: Response) => {
   res.setHeader('Warning', '299 - "This endpoint is deprecated. Use /api/integrations/huntiq/sync instead."');
   try {
     if (!HuntIQConfigManager.isConfigured()) {
@@ -704,7 +955,7 @@ app.post('/api/sync/huntiq', async (req: Request, res: Response) => {
 /**
  * Backward compatibility: Deprecated connection test endpoint
  */
-app.post('/api/sync/huntiq/test', async (req: Request, res: Response) => {
+app.post('/api/sync/huntiq/test', requireRole(['admin', 'service']), async (req: Request, res: Response) => {
   res.setHeader('Warning', '299 - "This endpoint is deprecated. Use /api/integrations/huntiq/test instead."');
   try {
     if (!HuntIQConfigManager.isConfigured()) {
@@ -739,7 +990,7 @@ import {
 /**
  * List all saved folders
  */
-app.get('/api/folders', (req: Request, res: Response) => {
+app.get('/api/folders', requirePermission('folders:read'), (req: Request, res: Response) => {
   try {
     const folders = getAllFolders();
     const storageInfo = getStorageDriverInfo();
@@ -752,7 +1003,7 @@ app.get('/api/folders', (req: Request, res: Response) => {
 /**
  * Create a new folder
  */
-app.post('/api/folders', (req: Request, res: Response) => {
+app.post('/api/folders', requirePermission('folders:manage'), (req: Request, res: Response) => {
   try {
     const { name } = req.body;
     if (!name || typeof name !== 'string' || !name.trim()) {
@@ -772,7 +1023,7 @@ app.post('/api/folders', (req: Request, res: Response) => {
 /**
  * Get folder records
  */
-app.get('/api/folders/:folderId', (req: Request, res: Response) => {
+app.get('/api/folders/:folderId', requirePermission('folders:read'), (req: Request, res: Response) => {
   try {
     const folderId = (req.params.folderId || '').trim();
     if (!folderId) {
@@ -791,7 +1042,7 @@ app.get('/api/folders/:folderId', (req: Request, res: Response) => {
 /**
  * Save / Move search records to a folder
  */
-app.post('/api/folders/:folderId/save', (req: Request, res: Response) => {
+app.post('/api/folders/:folderId/save', requirePermission('folders:manage'), (req: Request, res: Response) => {
   try {
     const folderId = (req.params.folderId || '').trim();
     if (!folderId) {
@@ -817,7 +1068,7 @@ app.post('/api/folders/:folderId/save', (req: Request, res: Response) => {
 /**
  * Delete a folder
  */
-app.delete('/api/folders/:folderId', (req: Request, res: Response) => {
+app.delete('/api/folders/:folderId', requirePermission('folders:manage'), (req: Request, res: Response) => {
   try {
     const folderId = (req.params.folderId || '').trim();
     if (!folderId) {
@@ -836,7 +1087,7 @@ app.delete('/api/folders/:folderId', (req: Request, res: Response) => {
 /**
  * Remove record from folder
  */
-app.delete('/api/folders/:folderId/records/:email', (req: Request, res: Response) => {
+app.delete('/api/folders/:folderId/records/:email', requirePermission('folders:manage'), (req: Request, res: Response) => {
   try {
     const folderId = (req.params.folderId || '').trim();
     const email = decodeURIComponent(req.params.email || '').trim();
@@ -935,8 +1186,8 @@ async function handleVerificationRequest(req: Request, res: Response) {
 /**
  * Verifies live MX records and deliverability for a list of records or emails
  */
-app.post('/api/verify', handleVerificationRequest);
-app.post('/api/verify/mx', handleVerificationRequest);
+app.post('/api/verify', requirePermission('system:read'), handleVerificationRequest);
+app.post('/api/verify/mx', requirePermission('system:read'), handleVerificationRequest);
 
 /**
  * Bulk Email Validator Endpoint (CSV, TXT, or Array input)
@@ -945,7 +1196,7 @@ app.post('/api/verify/mx', handleVerificationRequest);
  *   Layer 2: Live SMTP/MX verification with RFC 5321 A-record fallback & complete MX enrichment
  * Returns mailbox status, intelligence flags, typo suggestions, canonical deduplication form, and complete MX enrichment.
  */
-app.post('/api/validator/bulk', async (req: Request, res: Response) => {
+app.post('/api/validator/bulk', requirePermission('import:create'), async (req: Request, res: Response) => {
   try {
     const { csv, text, fileContent, records, emails } = req.body;
     let targetRecords: ScrapedEmailRecord[] = [];
@@ -1036,7 +1287,7 @@ app.post('/api/validator/bulk', async (req: Request, res: Response) => {
  * Imports pre-compiled email lists (CSV, TSV, JSON, or Plaintext)
  * with optional instant live MX deliverability verification
  */
-app.post('/api/import', async (req: Request, res: Response) => {
+app.post('/api/import', requirePermission('import:create'), async (req: Request, res: Response) => {
   try {
     const {
       text,

@@ -93,6 +93,9 @@ export {
   type UrlValidationOptions
 } from './utils/security';
 
+// Export API Authentication, RBAC, and Rate Limiting
+export * from './auth';
+
 /**
  * Main scraper class for easy usage
  */
