@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { parseEmailList, ParsedImportResult } from '../utils/importer';
+import { apiClient, UserSessionInfo } from './api/apiClient';
+import { sanitizeUrl, sanitizeSnippet, sanitizeEmailDisplay } from './security/sanitizer';
+import { useSecurityFeedback } from './hooks/useSecurityFeedback';
+import { SecurityAlertBanner } from './components/feedback/SecurityAlertBanner';
+import { AuthModal } from './components/feedback/AuthModal';
 
 // =============================================================================
 // TypeScript Interfaces & Data Contracts (Preserved Exactly)
@@ -269,6 +274,18 @@ const INITIAL_DISCOVERED_RECORDS: ScrapedEmailRecord[] = [
 // =============================================================================
 
 export const EmailScraperDashboard: React.FC = () => {
+  // Security Feedback & Session Management (Phase Eight)
+  const { activeAlert, retryCountdown, dismissAlert, triggerAlert } = useSecurityFeedback();
+  const [currentUser, setCurrentUser] = useState<UserSessionInfo | null>(() => apiClient.getCurrentUser());
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Sync initial user info on mount
+  useEffect(() => {
+    apiClient.getMe().then(user => {
+      if (user) setCurrentUser(user);
+    }).catch(() => {});
+  }, []);
+
   // Navigation & Responsive Drawer / Collapse
   const [activeNav, setActiveNav] = useState<NavSection>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -490,21 +507,12 @@ unreachable@fakeinvalidhost982348.com
     });
 
     try {
-      const res = await fetch('/api/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: importRawText,
-          verifyNow: false, // Parse immediately to enable real-time progressive chunking
-          sourceName: importFileName || 'Imported List',
-          defaultCompany: importDefaultCompany.trim() || undefined
-        })
+      const data: any = await apiClient.importList({
+        text: importRawText,
+        verifyNow: false,
+        sourceName: importFileName || 'Imported List',
+        defaultCompany: importDefaultCompany.trim() || undefined
       });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to import email list');
-      }
 
       let finalRecords: ScrapedEmailRecord[] = data.records || [];
 
@@ -581,12 +589,7 @@ unreachable@fakeinvalidhost982348.com
           }) : null);
 
           try {
-            const vRes = await fetch('/api/verify/mx', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ emails: chunk.map(c => c.email) })
-            });
-            const vData = await vRes.json();
+            const vData: any = await apiClient.verifyMx(chunk.map(c => c.email));
             if (vData.success && vData.results) {
               const statusMap = new Map<string, any>();
               vData.results.forEach((r: any) => {
@@ -736,9 +739,8 @@ unreachable@fakeinvalidhost982348.com
 
   const loadHuntiqConfig = async () => {
     try {
-      const res = await fetch('/api/integrations/huntiq/config');
-      if (res.ok) {
-        const data = await res.json();
+      const data: any = await apiClient.getHuntiqConfig();
+      if (data) {
         if (data.apiUrl) setHuntiqApiUrl(data.apiUrl);
         if (data.hasApiKey) {
           setHasStoredApiKey(true);
@@ -763,21 +765,13 @@ unreachable@fakeinvalidhost982348.com
     if (e) e.preventDefault();
     setIsSavingHuntiqConfig(true);
     try {
-      const res = await fetch('/api/integrations/huntiq/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          apiUrl: huntiqApiUrl,
-          apiKey: huntiqApiKey.trim() || undefined,
-          enabled: huntiqEnabled,
-          timeoutMs: parseInt(huntiqTimeoutMs, 10) || 30000,
-          maxRetries: parseInt(huntiqMaxRetries, 10) || 3
-        })
+      const data: any = await apiClient.saveHuntiqConfig({
+        apiUrl: huntiqApiUrl,
+        apiKey: huntiqApiKey.trim() || undefined as any,
+        enabled: huntiqEnabled,
+        timeoutMs: parseInt(huntiqTimeoutMs, 10) || 30000,
+        maxRetries: parseInt(huntiqMaxRetries, 10) || 3
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to save configuration');
-      }
       showToast('HUNTIQ runtime configuration applied (in-memory)!', 'success');
       if (data.hasApiKey) {
         setHasStoredApiKey(true);
@@ -787,6 +781,7 @@ unreachable@fakeinvalidhost982348.com
       // Run connection test with newly saved config
       await testHuntiqConnection(false);
     } catch (err: any) {
+      triggerAlert('huntiq_error', 'HUNTIQ Configuration Error', err.message);
       showToast(`Save error: ${err.message}`, 'error');
     } finally {
       setIsSavingHuntiqConfig(false);
@@ -795,12 +790,8 @@ unreachable@fakeinvalidhost982348.com
 
   const testHuntiqConnection = async (silent = false) => {
     try {
-      const res = await fetch('/api/integrations/huntiq/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data: any = await res.json();
-      if (res.status === 503 || data.code === 'HUNTIQ_INTEGRATION_NOT_CONFIGURED') {
+      const data: any = await apiClient.testHuntiq();
+      if (data.code === 'HUNTIQ_INTEGRATION_NOT_CONFIGURED') {
         setHuntiqStatus(prev => ({ ...prev, configured: false, connected: false, message: data.message || 'Not configured' }));
         if (!silent) showToast('HUNTIQ integration is not configured on the server.', 'error');
       } else if (data.reachable && data.authenticated) {
@@ -846,16 +837,7 @@ unreachable@fakeinvalidhost982348.com
       // MODE 1: SINGLE URL SCRAPE
       if (scrapeMode === 'single') {
         showToast('Initiating secure single-page extraction...', 'info');
-        const res = await fetch('/api/scrape/page', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: cleanTarget, timeout: 12000 })
-        });
-        const data: any = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || 'Scrape failed');
-        }
-
+        const data: any = await apiClient.scrapePage(cleanTarget, 12000);
         const newFound: ScrapedEmailRecord[] = data.records || [];
         mergeRecords(newFound);
         showToast(`Discovered ${newFound.length} contact(s) from ${cleanTarget}!`, 'success');
@@ -894,21 +876,13 @@ unreachable@fakeinvalidhost982348.com
         const depthNum = Math.min(10, Math.max(1, parseInt(crawlDepth.replace(/\D/g, ''), 10) || 2));
 
         showToast('Launching asynchronous crawler...', 'info');
-        const res = await fetch('/api/scrape/crawl', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: cleanTarget,
-            maxPages: pagesNum,
-            maxDepth: depthNum,
-            sameDomainOnly: true,
-            timeout: 15000
-          })
+        const data: any = await apiClient.startCrawl({
+          url: cleanTarget,
+          maxPages: pagesNum,
+          maxDepth: depthNum,
+          sameDomainOnly: true,
+          timeout: 15000
         });
-        const data: any = await res.json();
-        if (!res.ok || !data.jobId) {
-          throw new Error(data.error || 'Failed to start crawler');
-        }
 
         const jobId = data.jobId;
         setActiveJob({
@@ -1000,19 +974,11 @@ unreachable@fakeinvalidhost982348.com
         }
 
         showToast(`Processing batch of ${urlArray.length} URLs...`, 'info');
-        const res = await fetch('/api/scrape/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: urlArray })
-        });
-        const data: any = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || 'Batch scrape failed');
-        }
+        const data: any = await apiClient.batchScrape(urlArray);
 
         const newFound: ScrapedEmailRecord[] = data.records || [];
         mergeRecords(newFound);
-        showToast(`Batch completed: Found ${data.uniqueEmailsFound} unique email(s) across ${data.totalUrlsProcessed} targets`, 'success');
+        showToast(`Batch completed: Found ${data.uniqueEmailsFound || newFound.length} unique email(s) across ${data.totalUrlsProcessed || urlArray.length} targets`, 'success');
 
         setRecentJobs(prev => [
           {
@@ -1021,7 +987,7 @@ unreachable@fakeinvalidhost982348.com
             type: 'Batch',
             target: `${urlArray.length} URLs`,
             status: 'Completed',
-            emailsFound: data.uniqueEmailsFound,
+            emailsFound: data.uniqueEmailsFound || newFound.length,
             started: 'Just now'
           },
           ...prev
@@ -1032,7 +998,7 @@ unreachable@fakeinvalidhost982348.com
             id: Date.now().toString(),
             time: getFormattedTime(),
             status: 'Completed',
-            detail: `Found ${data.uniqueEmailsFound} emails across ${data.totalUrlsProcessed} batch URLs`
+            detail: `Found ${data.uniqueEmailsFound || newFound.length} emails across ${data.totalUrlsProcessed || urlArray.length} batch URLs`
           },
           ...prev.slice(0, 9)
         ]);
@@ -1042,6 +1008,23 @@ unreachable@fakeinvalidhost982348.com
         }
       }
     } catch (err: any) {
+      const errMsg = err.message || '';
+      if (
+        errMsg.includes('prohibited') ||
+        errMsg.includes('SSRF') ||
+        errMsg.includes('private network') ||
+        errMsg.includes('Restricted') ||
+        errMsg.includes('unsafe URL') ||
+        errMsg.includes('INVALID_INPUT')
+      ) {
+        triggerAlert('blocked_url', 'Blocked Unsafe Destination (SSRF Defense)', errMsg);
+      } else if (errMsg.includes('Rate limit') || errMsg.includes('Too many requests')) {
+        // Handled by onRateLimit callback
+      } else if (errMsg.includes('Session expired') || errMsg.includes('Authentication')) {
+        triggerAlert('auth_failure', 'Authentication Error', errMsg);
+      } else {
+        triggerAlert('job_failed', 'Extraction Job Failed', errMsg);
+      }
       showToast(`Scrape error: ${err.message}`, 'error');
       setIsScraping(false);
       setRecentJobs(prev => [
@@ -1075,10 +1058,12 @@ unreachable@fakeinvalidhost982348.com
   const handleCancelCrawl = async () => {
     if (!activeJob) return;
     try {
-      await fetch(`/api/scrape/crawl/cancel/${activeJob.jobId}`, { method: 'POST' });
+      await apiClient.cancelCrawl(activeJob.jobId);
       if (sseRef.current) sseRef.current.close();
+      const cancelledJobId = activeJob.jobId;
       setActiveJob(null);
       setIsScraping(false);
+      triggerAlert('crawl_cancelled', 'Crawl Job Cancelled', `Crawl job ${cancelledJobId} was successfully cancelled.`);
       showToast('Crawl job cancelled.', 'info');
       setActivities(prev => [
         {
@@ -1191,12 +1176,7 @@ unreachable@fakeinvalidhost982348.com
       }) : null);
 
       try {
-        const res = await fetch('/api/verify/mx', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ emails: chunk.map(c => c.email) })
-        });
-        const data: any = await res.json();
+        const data: any = await apiClient.verifyMx({ emails: chunk.map(c => c.email) });
         if (data.success && data.results) {
           const statusMap = new Map<string, any>();
           data.results.forEach((r: any) => {
@@ -1265,16 +1245,7 @@ unreachable@fakeinvalidhost982348.com
     }
 
     try {
-      const res = await fetch('/api/scrape/text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
-      });
-      const data: any = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Text extraction failed');
-      }
-
+      const data: any = await apiClient.scrapeText(text);
       const found: ScrapedEmailRecord[] = data.records || [];
       mergeRecords(found);
       showToast(`Extracted ${found.length} contact(s) from text snippet!`, 'success');
@@ -1323,15 +1294,7 @@ unreachable@fakeinvalidhost982348.com
         }
       }));
 
-      const res = await fetch('/api/integrations/huntiq/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contacts: payloadContacts })
-      });
-      const data: any = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || data.message || 'Sync failed');
-      }
+      const data: any = await apiClient.syncHuntiq(payloadContacts, activeJob?.jobId);
 
       const synced = data.syncedCount || payloadContacts.length;
       setHuntiqStatus(prev => ({
@@ -2761,29 +2724,18 @@ unreachable@fakeinvalidhost982348.com
 
   const handlePushSingleToHuntiq = async (record: ScrapedEmailRecord) => {
     try {
-      const res = await fetch('/api/integrations/huntiq/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          records: [{
-            email: record.email,
-            name: record.name,
-            domain: record.domain,
-            sourceUrl: record.sourceUrl,
-            type: record.type || 'personal',
-            discoveredAt: record.discoveredAt || new Date().toISOString()
-          }]
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        showToast(`Contact ${record.email} synced to HUNTIQ!`, 'success');
-        setHuntiqStatus(prev => ({ ...prev, recordsSynced: prev.recordsSynced + 1 }));
-      } else {
-        showToast(`HUNTIQ sync: ${data.message || data.error || 'Failed'}`, 'error');
-      }
+      const data: any = await apiClient.syncHuntiq([{
+        email: record.email,
+        name: record.name,
+        domain: record.domain,
+        sourceUrl: record.sourceUrl,
+        type: record.type || 'personal',
+        discoveredAt: record.discoveredAt || new Date().toISOString()
+      }]);
+      showToast(`Contact ${record.email} synced to HUNTIQ!`, 'success');
+      setHuntiqStatus(prev => ({ ...prev, recordsSynced: prev.recordsSynced + 1 }));
     } catch (err: any) {
-      showToast(`Sync failed: ${err.message}`, 'error');
+      showToast(`HUNTIQ sync failed: ${err.message}`, 'error');
     }
   };
 
@@ -5442,6 +5394,42 @@ unreachable@fakeinvalidhost982348.com
               )}
             </div>
 
+            {/* Authentication & Security Status Button */}
+            <button
+              type="button"
+              onClick={() => setShowAuthModal(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                backgroundColor: currentUser ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: `1px solid ${currentUser ? 'rgba(99, 102, 241, 0.35)' : 'rgba(255, 255, 255, 0.1)'}`,
+                color: currentUser ? '#818CF8' : '#94A3B8',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+              title="Manage Authentication & Security"
+            >
+              <span style={{ fontSize: '13px' }}>{currentUser ? '🛡️' : '🔑'}</span>
+              <span>{currentUser ? currentUser.username : 'Sign In'}</span>
+              {currentUser && (
+                <span
+                  style={{
+                    fontSize: '10px',
+                    padding: '1px 6px',
+                    borderRadius: '10px',
+                    backgroundColor: '#6366F1',
+                    color: '#FFFFFF'
+                  }}
+                >
+                  {currentUser.role.toUpperCase()}
+                </span>
+              )}
+            </button>
+
             <div
               style={styles.headerAvatar}
               onClick={() => setShowSettingsModal(true)}
@@ -5451,6 +5439,14 @@ unreachable@fakeinvalidhost982348.com
             </div>
           </div>
         </header>
+
+        {/* Security Alert Banner (Phase Eight) */}
+        <SecurityAlertBanner
+          alert={activeAlert}
+          countdown={retryCountdown}
+          onDismiss={dismissAlert}
+          onOpenAuthModal={() => setShowAuthModal(true)}
+        />
 
         {/* ================================================================= */}
         {/* VIEW CONTAINER: CONDITIONAL ON activeNav                          */}
@@ -5469,6 +5465,15 @@ unreachable@fakeinvalidhost982348.com
       {/* =================================================================== */}
       {/* 3. MODALS (RESTYLED WITH #141833 & INDIGO/PURPLE ACCENT)            */}
       {/* =================================================================== */}
+
+      {/* Auth & Security Modal (Phase Eight) */}
+      <AuthModal
+        isOpen={showAuthModal}
+        currentUser={currentUser}
+        onClose={() => setShowAuthModal(false)}
+        onSessionUpdated={(u) => setCurrentUser(u)}
+        onToast={showToast}
+      />
 
       {/* Import & Verify Modal */}
       {showImportModal && renderImportModal()}
