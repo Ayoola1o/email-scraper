@@ -755,8 +755,14 @@ unreachable@fakeinvalidhost982348.com
   useEffect(() => {
     loadFoldersList();
     loadHuntiqConfig();
-    testHuntiqConnection(true); // silent health ping on load
   }, []);
+
+  // When an admin or service user signs in, silently verify HuntIQ integration health
+  useEffect(() => {
+    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'service')) {
+      testHuntiqConnection(true);
+    }
+  }, [currentUser?.role]);
 
   const loadHuntiqConfig = async () => {
     try {
@@ -810,8 +816,17 @@ unreachable@fakeinvalidhost982348.com
   };
 
   const testHuntiqConnection = async (silent = false) => {
+    // Check if the current user is authorized to test integrations (requires admin or service role)
+    if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'service')) {
+      if (!silent) {
+        showToast('Administrator privileges are required to test HUNTIQ integration. Please log in as an administrator.', 'info');
+        setShowAuthModal(true);
+      }
+      return;
+    }
+
     try {
-      const data: any = await apiClient.testHuntiq();
+      const data: any = await apiClient.testHuntiq(silent);
       if (data.code === 'HUNTIQ_INTEGRATION_NOT_CONFIGURED') {
         setHuntiqStatus(prev => ({ ...prev, configured: false, connected: false, message: data.message || 'Not configured' }));
         if (!silent) showToast('HUNTIQ integration is not configured on the server.', 'error');

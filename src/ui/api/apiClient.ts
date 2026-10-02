@@ -397,10 +397,10 @@ class SecureApiClient {
     });
   }
 
-  public async testHuntiq() {
+  public async testHuntiq(silent = false) {
     return this.request('/api/integrations/huntiq/test', {
       method: 'POST'
-    });
+    }, silent);
   }
 
   public async syncHuntiq(records: any[], jobId?: string) {
