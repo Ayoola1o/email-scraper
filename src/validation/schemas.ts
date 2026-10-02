@@ -278,7 +278,8 @@ export const ExportRequestSchema = z
       .default('all'),
     fields: z.array(z.string().max(64)).max(50, 'Maximum 50 fields permitted').optional(),
     columns: z.array(z.string().max(64)).max(50, 'Maximum 50 columns permitted').optional(),
-    filename: z.string().max(128, 'Filename exceeds maximum length of 128 characters').optional()
+    filename: z.string().max(128, 'Filename exceeds maximum length of 128 characters').optional(),
+    filterSuppressed: z.boolean().optional().default(false)
   })
   .strict();
 
@@ -438,3 +439,38 @@ export const FolderIdParamSchema = z
     email: z.string().max(320).optional()
   })
   .strict();
+
+/**
+ * Privacy & Suppression Schemas
+ */
+export const SuppressionEntrySchema = z
+  .object({
+    type: z.enum(['email', 'domain', 'sha256', 'md5'] as const),
+    value: z.string().min(1, 'Value is required').max(320, 'Value exceeds 320 characters'),
+    reason: z.enum(['unsubscribe', 'bounce', 'complaint', 'manual', 'legal', 'dnc'] as const).optional().default('manual'),
+    note: z.string().max(500, 'Note exceeds 500 characters').optional()
+  })
+  .strict();
+
+export const BulkSuppressionSchema = z
+  .object({
+    entries: z.array(SuppressionEntrySchema).min(1, 'At least 1 entry is required').max(10_000, 'Maximum 10,000 entries per batch')
+  })
+  .strict();
+
+export const PrivacyConfigSchema = z
+  .object({
+    retentionDays: z.number().int().min(1).max(3650).optional(),
+    maskEmailsInLogs: z.boolean().optional(),
+    sanitizeContextSnippets: z.boolean().optional(),
+    contextSnippetMaxChars: z.number().int().min(10).max(1000).optional(),
+    stripContextSnippets: z.boolean().optional()
+  })
+  .strict();
+
+export const DeleteRecordByEmailSchema = z
+  .object({
+    email: z.string().min(3).max(320)
+  })
+  .strict();
+

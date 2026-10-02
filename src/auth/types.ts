@@ -19,6 +19,8 @@ export type Permission =
   | 'huntiq:sync'
   | 'keys:manage'
   | 'keys:manage_own'
+  | 'privacy:manage'
+  | 'privacy:audit:read'
   | 'system:read';
 
 export interface UserContext {

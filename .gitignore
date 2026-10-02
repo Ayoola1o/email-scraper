@@ -6,3 +6,6 @@ dist/
 *.tsbuildinfo
 data/jobs/
 data/api_keys.json
+data/suppression.json
+data/export_audit_logs.json
+

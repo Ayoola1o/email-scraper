@@ -28,6 +28,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'folders:read',
     'folders:manage',
     'keys:manage_own',
+    'privacy:manage',
     'system:read'
   ],
   readonly: [

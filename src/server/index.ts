@@ -58,6 +58,10 @@ import {
   FolderSchema,
   SaveFolderRecordsSchema,
   FolderIdParamSchema,
+  SuppressionEntrySchema,
+  BulkSuppressionSchema,
+  PrivacyConfigSchema,
+  DeleteRecordByEmailSchema,
   sanitizeFilename,
   sanitizeForLog
 } from '../validation';
@@ -68,6 +72,18 @@ import {
   LocalEventBus,
   QueueCapacityExceededError
 } from '../jobs';
+import {
+  suppressionManager,
+  auditStore,
+  DataDeletionManager,
+  COMPLIANCE_DISCLAIMER,
+  getStandardComplianceNotice,
+  isRestrictedCompliancePath,
+  sanitizeContextSnippet,
+  getPrivacyConfig,
+  updatePrivacyConfig,
+  privacyLog
+} from '../privacy';
 
 const app = express();
 app.disable('x-powered-by');
@@ -355,13 +371,31 @@ app.post('/api/scrape/page', requirePermission('scrape:create'), validateBody(Si
       userAgent
     });
 
+    const privacyCfg = getPrivacyConfig();
+    const enrichedRecords = result.records.map(r => {
+      const check = suppressionManager.checkEmail(r.email);
+      let snippet = r.contextSnippet;
+      if (snippet && privacyCfg.sanitizeContextSnippets) {
+        snippet = sanitizeContextSnippet(snippet, {
+          maxChars: privacyCfg.contextSnippetMaxChars,
+          stripSnippet: privacyCfg.stripContextSnippets
+        });
+      }
+      return {
+        ...r,
+        contextSnippet: snippet,
+        isSuppressed: check.isSuppressed,
+        suppressionReason: check.reason
+      };
+    });
+
     return res.json({
       success: true,
       url,
       pageTitle: result.pageTitle,
       statusCode: result.statusCode,
-      count: result.records.length,
-      records: result.records
+      count: enrichedRecords.length,
+      records: enrichedRecords
     });
   } catch (err: any) {
     return res.status(500).json({
@@ -721,7 +755,7 @@ app.post('/api/scrape/text', requirePermission('scrape:create'), validateBody(Te
  */
 app.post('/api/export', requirePermission('export:read'), validateBody(ExportRequestSchema), (req: Request, res: Response) => {
   try {
-    const { records, format = 'csv', fields, segment = 'all', filename: customFilename } = req.body;
+    const { records, format = 'csv', fields, segment = 'all', filename: customFilename, filterSuppressed = false } = req.body;
     if (!Array.isArray(records)) {
       return res.status(400).json({ error: 'Records array is required' });
     }
@@ -735,17 +769,41 @@ app.post('/api/export', requirePermission('export:read'), validateBody(ExportReq
       return res.status(400).json({ error: `Invalid format. Must be one of: ${validFormats.join(', ')}` });
     }
 
-    const { filtered, prefix, label } = filterRecordsBySegment(records, segment);
+    let recordsToExport = records;
+    if (filterSuppressed) {
+      recordsToExport = recordsToExport.filter(r => !suppressionManager.checkEmail(r.email).isSuppressed);
+    }
+
+    const { filtered, prefix, label } = filterRecordsBySegment(recordsToExport, segment);
     const result = formatRecords(filtered, format as any, Array.isArray(fields) ? fields : undefined);
     const userFilename = customFilename ? sanitizeFilename(customFilename) : null;
     const filename = userFilename
       ? (userFilename.endsWith(`.${result.extension}`) ? userFilename : `${userFilename}.${result.extension}`)
       : `${prefix}_${Date.now()}.${result.extension}`;
 
+    // Audit Logging
+    const auth = req.auth || authenticateRequest(req);
+    const userId = auth?.user?.id || 'usr_anonymous';
+    const role = auth?.user?.role || 'user';
+    const clientIp = (req.ip || req.socket.remoteAddress || 'unknown') as string;
+
+    auditStore.logExport({
+      userId,
+      userRole: role,
+      format: format as any,
+      recordCount: filtered.length,
+      clientIp,
+      exportedFields: Array.isArray(fields) ? fields : undefined,
+      exportSegment: segment,
+      filename,
+      filterSuppressed: Boolean(filterSuppressed)
+    });
+
     res.setHeader('Content-Type', result.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('X-Export-Segment', label);
     res.setHeader('X-Export-Count', String(filtered.length));
+    res.setHeader('X-Compliance-Notice', 'MX/syntax verification is not proof of mailbox existence or marketing consent');
     return res.send(result.data);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -1207,7 +1265,8 @@ async function handleVerificationRequest(req: Request, res: Response) {
       totalCount: verified.length,
       deliverableCount,
       undeliverableCount,
-      disposableCount
+      disposableCount,
+      complianceNotice: getStandardComplianceNotice()
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -1307,7 +1366,8 @@ app.post('/api/validator/bulk', requirePermission('import:create'), validateBody
       layer1FilteredCount: layer1BlockedCount,
       layer1FilterRate: `${((layer1BlockedCount / verified.length) * 100).toFixed(1)}%`,
       records: verified,
-      outputs
+      outputs,
+      complianceNotice: getStandardComplianceNotice()
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -1482,6 +1542,211 @@ app.get('/api/demo/careers', (req: Request, res: Response) => {
   <p><a href="/api/demo">Back to Home</a></p>
 </body>
 </html>`);
+});
+
+/* ========================================================================= */
+/* Email Data Security, Privacy & Suppression Endpoints (Phase Six)          */
+/* ========================================================================= */
+
+/**
+ * List suppression rules
+ */
+app.get('/api/privacy/suppression', requireAuth, requirePermission('privacy:manage'), (req: Request, res: Response) => {
+  try {
+    const userId = req.auth?.user?.id;
+    const isAdmin = req.auth?.user?.role === 'admin';
+    const entries = suppressionManager.listEntries(userId, isAdmin);
+    return res.json({
+      success: true,
+      count: entries.length,
+      entries
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Add a suppression entry
+ */
+app.post('/api/privacy/suppression', requireAuth, requirePermission('privacy:manage'), validateBody(SuppressionEntrySchema), (req: Request, res: Response) => {
+  try {
+    const { type, value, reason, note } = req.body;
+    const normReason = (reason ? String(reason).toUpperCase() : 'MANUAL') as any;
+    const entry = suppressionManager.addEntry(type, value, normReason, req.auth?.user?.id, note);
+    return res.status(201).json({
+      success: true,
+      entry
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Bulk add suppression entries
+ */
+app.post('/api/privacy/suppression/bulk', requireAuth, requirePermission('privacy:manage'), validateBody(BulkSuppressionSchema), (req: Request, res: Response) => {
+  try {
+    const { entries } = req.body;
+    const normalized = entries.map((e: any) => ({
+      ...e,
+      reason: (e.reason ? String(e.reason).toUpperCase() : 'MANUAL') as any
+    }));
+    const result = suppressionManager.addBulkEntries(normalized, req.auth?.user?.id);
+    return res.json({
+      success: true,
+      addedCount: result.added,
+      existingCount: result.existing,
+      totalProcessed: entries.length
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Remove a suppression entry
+ */
+app.delete('/api/privacy/suppression/:id', requireAuth, requirePermission('privacy:manage'), (req: Request, res: Response) => {
+  try {
+    const id = req.params.id;
+    const userId = req.auth?.user?.id;
+    const isAdmin = req.auth?.user?.role === 'admin';
+    const removed = suppressionManager.removeEntry(id, userId, isAdmin);
+    if (!removed) {
+      return res.status(404).json({ success: false, error: 'Suppression entry not found' });
+    }
+    return res.json({ success: true, message: 'Suppression entry removed' });
+  } catch (err: any) {
+    if (err.message && err.message.includes('IDOR_ACCESS_DENIED')) {
+      return res.status(403).json({ success: false, error: err.message });
+    }
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Check whether an email is suppressed
+ */
+app.get('/api/privacy/suppression/check/:email', requireAuth, requirePermission('privacy:manage'), (req: Request, res: Response) => {
+  try {
+    const email = decodeURIComponent(req.params.email || '').trim();
+    if (!email) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+    const result = suppressionManager.checkEmail(email);
+    return res.json({
+      success: true,
+      email,
+      ...result
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Export audit logs (restricted to admins)
+ */
+app.get('/api/privacy/audit-logs', requireAuth, requirePermission('privacy:audit:read'), (req: Request, res: Response) => {
+  try {
+    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 100;
+    const userId = req.auth?.user?.id;
+    const isAdmin = req.auth?.user?.role === 'admin';
+    const logs = auditStore.listLogs(userId, isAdmin, limit);
+    return res.json({
+      success: true,
+      count: logs.length,
+      logs
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Securely deletes a crawl job and its data
+ */
+app.delete('/api/privacy/jobs/:jobId', requireAuth, requirePermission('crawl:cancel'), validateParams(JobIdParamSchema), async (req: Request, res: Response) => {
+  try {
+    const jobId = req.params.jobId;
+    const userId = req.auth?.user?.id || 'usr_anonymous';
+    const isAdmin = req.auth?.user?.role === 'admin';
+    const result = await DataDeletionManager.deleteJob(jobId, userId, isAdmin);
+    return res.json({
+      success: true,
+      jobId: result.jobId,
+      message: 'Job and associated artifacts securely deleted'
+    });
+  } catch (err: any) {
+    if (err.message && err.message.includes('NOT_FOUND')) {
+      return res.status(404).json({ success: false, error: err.message });
+    }
+    if (err.message && err.message.includes('IDOR_ACCESS_DENIED')) {
+      return res.status(403).json({ success: false, error: err.message });
+    }
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Right to be Forgotten: Delete all records matching an email
+ */
+app.delete('/api/privacy/records/email/:email', requireAuth, requirePermission('privacy:manage'), validateParams(DeleteRecordByEmailSchema), async (req: Request, res: Response) => {
+  try {
+    const email = decodeURIComponent(req.params.email || '').trim();
+    const userId = req.auth?.user?.id || 'usr_anonymous';
+    const isAdmin = req.auth?.user?.role === 'admin';
+    const result = await DataDeletionManager.deleteRecordsByEmail(email, userId, isAdmin);
+    return res.json({
+      success: true,
+      email,
+      ...result
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Right to be Forgotten: Purge entire user account data
+ */
+app.delete('/api/privacy/account', requireAuth, requirePermission('privacy:manage'), async (req: Request, res: Response) => {
+  try {
+    const userId = req.auth?.user?.id;
+    if (!userId) {
+      return res.status(400).json({ error: 'Authenticated user ID required' });
+    }
+    const isAdmin = req.auth?.user?.role === 'admin';
+    const result = await DataDeletionManager.purgeAllUserData(userId, isAdmin);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Privacy configuration settings
+ */
+app.get('/api/privacy/config', requireAuth, requirePermission('privacy:manage'), (req: Request, res: Response) => {
+  return res.json({
+    success: true,
+    config: getPrivacyConfig(),
+    disclaimer: COMPLIANCE_DISCLAIMER
+  });
+});
+
+app.put('/api/privacy/config', requireAuth, requireRole(['admin']), validateBody(PrivacyConfigSchema), (req: Request, res: Response) => {
+  try {
+    const updated = updatePrivacyConfig(req.body);
+    return res.json({
+      success: true,
+      config: updated
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // Global error handling middleware - sanitize error responses and avoid leaking internals

@@ -227,7 +227,7 @@ export function extractEmailRecordsFromHtml(
 
   // 1. Look for mailto: links specifically (high confidence)
   const mailtoRegex = /href=["']mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})[^"']*["']/gi;
-  const directEmails = new Map<string, { email: string; context: string }>();
+  const directEmails = new Map<string, { email: string; context: string; contextType?: 'mailto' | 'text' | 'metadata' | 'script' }>();
 
   let mailtoMatch;
   while ((mailtoMatch = mailtoRegex.exec(decodedHtml)) !== null) {
@@ -236,7 +236,8 @@ export function extractEmailRecordsFromHtml(
       const normalized = normalizeEmail(rawEmail);
       directEmails.set(normalized, {
         email: normalized,
-        context: `mailto link on page`
+        context: `mailto link on page`,
+        contextType: 'mailto'
       });
     }
   }
@@ -251,12 +252,14 @@ export function extractEmailRecordsFromHtml(
     if (!directEmails.has(normalized)) {
       directEmails.set(normalized, {
         email: normalized,
-        context: snippet
+        context: snippet,
+        contextType: 'text'
       });
     } else if (snippet && directEmails.get(normalized)?.context.includes('mailto link')) {
       directEmails.set(normalized, {
         email: normalized,
-        context: snippet
+        context: snippet,
+        contextType: 'text'
       });
     }
   }
@@ -273,7 +276,8 @@ export function extractEmailRecordsFromHtml(
         .trim();
       directEmails.set(normalized, {
         email: normalized,
-        context: rawSnippet || 'Embedded in page metadata/scripts'
+        context: rawSnippet || 'Embedded in page metadata/scripts',
+        contextType: 'metadata'
       });
     }
   }
@@ -308,6 +312,8 @@ export function extractEmailRecordsFromHtml(
       sourceUrl,
       pageTitle: title || undefined,
       contextSnippet: context || undefined,
+      contextType: data.contextType || 'text',
+      extractionMethod: 'http',
       depth,
       discoveredAt: now,
       validity: {

@@ -121,6 +121,9 @@ export * from './validation';
 // Export Durable Jobs, Queue & Event Bus (Phase Five)
 export * from './jobs';
 
+// Export Email Data Security & Privacy (Phase Six)
+export * from './privacy';
+
 /**
  * Main scraper class for easy usage
  */

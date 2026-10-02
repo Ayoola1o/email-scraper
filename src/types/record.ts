@@ -54,6 +54,14 @@ export interface ScrapedEmailRecord {
   jobId?: string;
   /** Custom organizational tags */
   tags?: string[];
+  /** Provenance: exact extraction method (http, browser, bulk_import, manual) */
+  extractionMethod?: 'http' | 'browser' | 'bulk_import' | 'manual';
+  /** Provenance: classification of where in the page the email was found */
+  contextType?: 'mailto' | 'text' | 'metadata' | 'script';
+  /** Whether this record matched a suppression/opt-out list entry */
+  isSuppressed?: boolean;
+  /** Suppression reason if matched (UNSUBSCRIBE, BOUNCE, DO_NOT_CONTACT, etc.) */
+  suppressionReason?: string;
   /** Calculated accuracy / discovery confidence percentage */
   confidence?: number;
   /** Layer 1: Canonical deduplicated form (lowercase, subaddressing tags stripped, dot normalized) */
