@@ -112,6 +112,8 @@ export class DataDeletionManager {
     let deletedRecordsCount = 0;
     const folders = getAllFolders();
     for (const folder of folders) {
+      // Do not wipe the default system demo folder
+      if (folder.id === 'default') continue;
       deletedRecordsCount += folder.count;
       deleteFolder(folder.id);
       deletedFoldersCount++;
