@@ -34,7 +34,8 @@ import {
   createUserRateLimiter,
   checkAuthBruteForce,
   ConcurrencyTracker,
-  UserRole
+  UserRole,
+  userStore
 } from '../auth';
 import {
   requestIdMiddleware,
@@ -229,11 +230,13 @@ app.post('/api/auth/token', validateBody(AuthTokenSchema), async (req: Request, 
     const validRoles: UserRole[] = ['admin', 'user', 'readonly', 'service'];
     const userRole: UserRole = validRoles.includes(role) ? role : 'user';
 
-    const userId = `usr_${randomUUID().substring(0, 8)}`;
+    // Durable User Profile retrieval or creation (stable identity across sessions)
+    const userProfile = await userStore.createOrUpdateUser(username.trim(), userRole);
+    const userId = userProfile.id;
     const session = TokenManager.createSessionToken({
       id: userId,
-      username: username.trim(),
-      role: userRole
+      username: userProfile.username,
+      role: userProfile.role
     });
 
     res.setHeader('Set-Cookie', `esp_session=${session.token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=7200${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
@@ -243,8 +246,9 @@ app.post('/api/auth/token', validateBody(AuthTokenSchema), async (req: Request, 
       expiresAt: session.expiresAt,
       user: {
         id: userId,
-        username: username.trim(),
-        role: userRole
+        username: userProfile.username,
+        role: userProfile.role,
+        preferences: userProfile.preferences
       }
     });
   } catch (err: any) {
@@ -285,14 +289,40 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
 
 /**
  * GET /api/auth/me
- * Returns current authenticated user context
+ * Returns current authenticated user context with preferences
  */
-app.get('/api/auth/me', requireAuth, (req: Request, res: Response) => {
+app.get('/api/auth/me', requireAuth, async (req: Request, res: Response) => {
+  const profile = await userStore.getUserById(req.auth!.user.id);
   return res.json({
     success: true,
-    user: req.auth!.user,
+    user: {
+      ...req.auth!.user,
+      preferences: profile?.preferences
+    },
     authMethod: req.auth!.authMethod
   });
+});
+
+/**
+ * GET /api/auth/profile
+ * Retrieves full persistent profile and crawler preferences
+ */
+app.get('/api/auth/profile', requireAuth, async (req: Request, res: Response) => {
+  const profile = await userStore.getUserById(req.auth!.user.id);
+  if (!profile) {
+    return res.status(404).json({ error: 'User profile not found' });
+  }
+  return res.json({ success: true, profile });
+});
+
+/**
+ * PUT /api/auth/profile
+ * Updates persistent user preferences (e.g. crawl depth, user agent, contact email)
+ */
+app.put('/api/auth/profile', requireAuth, async (req: Request, res: Response) => {
+  const { preferences } = req.body || {};
+  const updated = await userStore.updateUserPreferences(req.auth!.user.id, preferences || {});
+  return res.json({ success: true, profile: updated });
 });
 
 /**
@@ -433,7 +463,9 @@ app.post('/api/scrape/crawl', requirePermission('crawl:create'), validateBody(We
       delayMs = 250,
       useBrowser = false,
       userAgent,
-      headers
+      headers,
+      respectRobotsTxt = true,
+      contactEmail
     } = req.body;
 
     if (!url || typeof url !== 'string') {
@@ -471,7 +503,9 @@ app.post('/api/scrape/crawl', requirePermission('crawl:create'), validateBody(We
         delayMs,
         useBrowser,
         userAgent,
-        headers
+        headers,
+        respectRobotsTxt,
+        contactEmail
       },
       userId
     );
@@ -643,6 +677,32 @@ app.get('/api/scrape/crawl/jobs/:jobId', requireAuth, validateParams(JobIdParamS
     }
 
     return res.json({ success: true, job });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/scrape/crawl/jobs/:jobId
+ * Deletes a crawl job from durable storage with IDOR check
+ */
+app.delete('/api/scrape/crawl/jobs/:jobId', requireAuth, validateParams(JobIdParamSchema), async (req: Request, res: Response) => {
+  try {
+    const job = await jobStore.getJob(req.params.jobId);
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (!verifyOwnership(job.ownerId, req.auth!.user)) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        code: 'IDOR_ACCESS_DENIED',
+        message: 'Access denied: You do not have permission to delete this crawl job'
+      });
+    }
+
+    const deleted = await jobStore.deleteJob(req.params.jobId);
+    return res.json({ success: deleted, message: 'Crawl job deleted successfully' });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

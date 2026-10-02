@@ -1,0 +1,15 @@
+{
+  "id": "usr_bobattac_41509e7b",
+  "username": "bob_attacker",
+  "role": "user",
+  "createdAt": 1790948435351,
+  "updatedAt": 1790948557243,
+  "lastLoginAt": 1790948557243,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 1
+}

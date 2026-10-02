@@ -1,0 +1,15 @@
+{
+  "id": "usr_superadm_c064a773",
+  "username": "superadmin",
+  "role": "admin",
+  "createdAt": 1790948519913,
+  "updatedAt": 1790948519913,
+  "lastLoginAt": 1790948519913,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 10
+}

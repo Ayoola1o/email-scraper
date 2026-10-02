@@ -1,0 +1,14 @@
+{
+  "id": "usr_research_04bbdcc2",
+  "username": "researcher_1790948557006",
+  "role": "user",
+  "createdAt": 1790948557007,
+  "updatedAt": 1790948557013,
+  "lastLoginAt": 1790948557011,
+  "preferences": {
+    "contactEmail": "researcher_1790948557006@testdomain.org",
+    "defaultCrawlDepth": 3,
+    "defaultMaxPages": 75
+  },
+  "quotaMultiplier": 1
+}

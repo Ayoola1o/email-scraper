@@ -1,0 +1,15 @@
+{
+  "id": "usr_charlie_cde92151",
+  "username": "charlie",
+  "role": "user",
+  "createdAt": 1790948520075,
+  "updatedAt": 1790948520075,
+  "lastLoginAt": 1790948520075,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 1
+}

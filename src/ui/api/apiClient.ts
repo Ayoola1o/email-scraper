@@ -249,6 +249,18 @@ class SecureApiClient {
     this.setApiKey(null);
   }
 
+  public async getProfile() {
+    return this.request('/api/auth/profile');
+  }
+
+  public async updateProfile(preferences: any) {
+    return this.request('/api/auth/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preferences })
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // Scraping & Crawling Endpoints
   // ---------------------------------------------------------------------------
@@ -270,12 +282,33 @@ class SecureApiClient {
     delayMs?: number;
     useBrowser?: boolean;
     userAgent?: string;
+    respectRobotsTxt?: boolean;
+    contactEmail?: string;
   }) {
     return this.request('/api/scrape/crawl', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params)
     });
+  }
+
+  public async listJobs(limit = 50, all = false) {
+    return this.request<{ success: boolean; count: number; jobs: any[] }>(
+      `/api/scrape/crawl/jobs?limit=${limit}${all ? '&all=true' : ''}`
+    );
+  }
+
+  public async getJob(jobId: string) {
+    return this.request<{ success: boolean; job: any }>(
+      `/api/scrape/crawl/jobs/${encodeURIComponent(jobId)}`
+    );
+  }
+
+  public async deleteJob(jobId: string) {
+    return this.request<{ success: boolean; message: string }>(
+      `/api/scrape/crawl/jobs/${encodeURIComponent(jobId)}`,
+      { method: 'DELETE' }
+    );
   }
 
   public async cancelCrawl(jobId: string) {

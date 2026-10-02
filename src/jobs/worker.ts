@@ -64,6 +64,8 @@ export class CrawlJobWorker {
         delayMs: safeDelay,
         useBrowser: isBrowser,
         userAgent: job.params.userAgent,
+        contactEmail: job.params.contactEmail,
+        respectRobotsTxt: job.params.respectRobotsTxt ?? true,
         isCancelled: () => {
           return Boolean(job.cancelled);
         },
@@ -93,6 +95,9 @@ export class CrawlJobWorker {
       job.status = isCancelled ? 'cancelled' : 'completed';
       job.records = result.records.slice(0, MAX_RECORDS_PER_JOB);
       job.pagesVisited = result.pagesVisited;
+      job.pagesSkipped = result.pagesSkipped;
+      job.pagesFailed = result.pagesFailed;
+      job.accessRestrictedReason = result.accessRestrictedReason;
       job.errors = result.errors;
       job.endedAt = Date.now();
       job.durationMs = job.endedAt - job.startedAt;
@@ -107,6 +112,9 @@ export class CrawlJobWorker {
           status: job.status,
           totalRecords: job.records.length,
           pagesVisited: job.pagesVisited,
+          pagesSkipped: job.pagesSkipped,
+          pagesFailed: job.pagesFailed,
+          accessRestrictedReason: job.accessRestrictedReason,
           errors: job.errors,
           durationMs: job.durationMs,
           records: job.records

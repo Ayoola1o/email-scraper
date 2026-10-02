@@ -13,6 +13,8 @@ export interface CrawlJobParameters {
   useBrowser?: boolean;
   userAgent?: string;
   headers?: Record<string, string>;
+  respectRobotsTxt?: boolean;
+  contactEmail?: string;
 }
 
 export interface CrawlJobMetadata {
@@ -23,6 +25,8 @@ export interface CrawlJobMetadata {
   params: CrawlJobParameters;
   records: ScrapedEmailRecord[];
   pagesVisited: number;
+  pagesSkipped?: number;
+  pagesFailed?: number;
   errors: number;
   startedAt: number;
   endedAt?: number;
@@ -32,6 +36,7 @@ export interface CrawlJobMetadata {
   retryCount: number;
   maxRetries: number;
   errorMessage?: string;
+  accessRestrictedReason?: string;
   isBrowser: boolean;
   expiresAt: number;
   updatedAt: number;

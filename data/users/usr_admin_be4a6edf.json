@@ -1,0 +1,15 @@
+{
+  "id": "usr_admin_be4a6edf",
+  "username": "admin",
+  "role": "admin",
+  "createdAt": 1790948555863,
+  "updatedAt": 1790948555863,
+  "lastLoginAt": 1790948555863,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 10
+}

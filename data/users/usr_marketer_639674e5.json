@@ -1,0 +1,15 @@
+{
+  "id": "usr_marketer_639674e5",
+  "username": "marketer_bob",
+  "role": "user",
+  "createdAt": 1790948548153,
+  "updatedAt": 1790948548153,
+  "lastLoginAt": 1790948548153,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 1
+}

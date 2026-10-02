@@ -1,0 +1,15 @@
+{
+  "id": "usr_regularu_b3f87809",
+  "username": "regular_user",
+  "role": "user",
+  "createdAt": 1790948555902,
+  "updatedAt": 1790948555902,
+  "lastLoginAt": 1790948555902,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 1
+}

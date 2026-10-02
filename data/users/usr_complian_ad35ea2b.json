@@ -1,0 +1,15 @@
+{
+  "id": "usr_complian_ad35ea2b",
+  "username": "compliance_officer",
+  "role": "admin",
+  "createdAt": 1790948548126,
+  "updatedAt": 1790948548126,
+  "lastLoginAt": 1790948548126,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 10
+}

@@ -1,0 +1,15 @@
+{
+  "id": "usr_bob_3683118d",
+  "username": "bob",
+  "role": "user",
+  "createdAt": 1790948520009,
+  "updatedAt": 1790948520009,
+  "lastLoginAt": 1790948520009,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 1
+}

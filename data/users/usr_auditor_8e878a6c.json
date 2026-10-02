@@ -1,0 +1,15 @@
+{
+  "id": "usr_auditor_8e878a6c",
+  "username": "auditor",
+  "role": "readonly",
+  "createdAt": 1790948519964,
+  "updatedAt": 1790948519964,
+  "lastLoginAt": 1790948519964,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 1
+}

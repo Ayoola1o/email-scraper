@@ -1,0 +1,15 @@
+{
+  "id": "usr_marketer_a2901aa5",
+  "username": "marketer_eve",
+  "role": "user",
+  "createdAt": 1790948548164,
+  "updatedAt": 1790948548164,
+  "lastLoginAt": 1790948548164,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 1
+}

@@ -1,0 +1,15 @@
+{
+  "id": "usr_frankaud_140cdc6e",
+  "username": "frank_auditor",
+  "role": "readonly",
+  "createdAt": 1790948554846,
+  "updatedAt": 1790948554846,
+  "lastLoginAt": 1790948554846,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 1
+}

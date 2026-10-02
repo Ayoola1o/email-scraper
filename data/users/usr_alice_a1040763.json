@@ -1,0 +1,15 @@
+{
+  "id": "usr_alice_a1040763",
+  "username": "alice",
+  "role": "user",
+  "createdAt": 1790948519844,
+  "updatedAt": 1790948519844,
+  "lastLoginAt": 1790948519844,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 1
+}

@@ -135,7 +135,9 @@ export const WebsiteCrawlSchema = z
       .string()
       .max(512, 'userAgent exceeds 512 characters')
       .refine((val: string) => !/[\r\n]/.test(val), { message: 'userAgent cannot contain CRLF characters' })
-      .optional()
+      .optional(),
+    respectRobotsTxt: z.boolean().optional().default(true),
+    contactEmail: z.string().email('contactEmail must be a valid email address').max(255).optional()
   })
   .strict();
 

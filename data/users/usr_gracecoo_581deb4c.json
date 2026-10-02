@@ -1,0 +1,15 @@
+{
+  "id": "usr_gracecoo_581deb4c",
+  "username": "grace_cookie_user",
+  "role": "user",
+  "createdAt": 1790948554877,
+  "updatedAt": 1790948554877,
+  "lastLoginAt": 1790948554877,
+  "preferences": {
+    "defaultCrawlDepth": 2,
+    "defaultMaxPages": 30,
+    "defaultTimeoutMs": 15000,
+    "theme": "dark"
+  },
+  "quotaMultiplier": 1
+}

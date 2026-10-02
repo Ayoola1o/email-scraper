@@ -751,11 +751,57 @@ unreachable@fakeinvalidhost982348.com
 
   const loadFoldersList = async () => {};
 
+  const loadUserJobs = async () => {
+    try {
+      const res = await apiClient.listJobs(50);
+      if (res && res.jobs && Array.isArray(res.jobs)) {
+        const mapped: RecentJobItem[] = res.jobs.map((j: any) => {
+          const startedDate = new Date(j.startedAt);
+          const timeStr = `${startedDate.toLocaleDateString()} ${startedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+          return {
+            id: j.id,
+            name: `${(j.url || 'Crawl').replace(/^https?:\/\//, '')}`,
+            type: j.isBrowser ? 'Crawl' : 'Domain',
+            target: j.url || 'Unknown Target',
+            status: j.status === 'completed' ? 'Completed' : j.status === 'running' ? 'Running' : j.status === 'cancelled' ? 'Cancelled' : 'Failed',
+            emailsFound: (j.records || []).length,
+            started: timeStr
+          };
+        });
+        setRecentJobs(mapped);
+      }
+    } catch {
+      // Unauthenticated or network error on init
+    }
+  };
+
+  const handleLoadJobRecords = async (jobId: string) => {
+    try {
+      showToast('Loading job results...', 'info');
+      const res = await apiClient.getJob(jobId);
+      if (res && res.job && res.job.records) {
+        mergeRecords(res.job.records);
+        setActiveTab('results');
+        showToast(`Loaded ${res.job.records.length} contact records from job!`, 'success');
+      }
+    } catch (err: any) {
+      showToast(`Failed to load job: ${err.message}`, 'error');
+    }
+  };
+
   // Initial Data Load
   useEffect(() => {
     loadFoldersList();
     loadHuntiqConfig();
+    loadUserJobs();
   }, []);
+
+  // When an authenticated user signs in or changes, load their durable job history
+  useEffect(() => {
+    if (currentUser) {
+      loadUserJobs();
+    }
+  }, [currentUser?.id]);
 
   // When an admin or service user signs in, silently verify HuntIQ integration health
   useEffect(() => {
@@ -992,6 +1038,7 @@ unreachable@fakeinvalidhost982348.com
           if (verifyEmails && doneData.records && doneData.records.length > 0) {
             handleVerifyDeliverability(doneData.records);
           }
+          loadUserJobs();
         });
 
         eventSource.addEventListener('error', () => {
@@ -999,6 +1046,7 @@ unreachable@fakeinvalidhost982348.com
           setIsScraping(false);
           setActiveJob(null);
           setRecentJobs(prev => prev.map(j => j.id === jobEntryId ? { ...j, status: 'Failed' } : j));
+          loadUserJobs();
         });
       }
 
@@ -1465,7 +1513,12 @@ unreachable@fakeinvalidhost982348.com
     showToast('Loaded built-in demo target! Click "Start Scrape" to test extraction.', 'info');
   };
 
-  const handleDeleteJob = (jobId: string) => {
+  const handleDeleteJob = async (jobId: string) => {
+    try {
+      await apiClient.deleteJob(jobId);
+    } catch {
+      // In guest mode or offline, still remove from local state
+    }
     setRecentJobs(prev => prev.filter(j => j.id !== jobId));
     showToast('Job removed from list.', 'info');
   };
