@@ -88,10 +88,29 @@ export * from './integrations/huntiq';
 export {
   validateSafeScrapeUrl,
   isRestrictedIpAddress,
+  normalizeAlternativeIpString,
+  parseAndValidateIpv4,
+  safeFetch,
   sanitizeCrawlLimits,
   CRAWL_SECURITY_LIMITS,
-  type UrlValidationOptions
+  type UrlValidationOptions,
+  type SafeFetchOptions,
+  type SafeFetchResult
 } from './utils/security';
+
+export {
+  executeSecureRequest,
+  createSecureLookup,
+  createSecureAgents,
+  type SecureRequestOptions,
+  type SecureResponseResult
+} from './utils/secureHttpClient';
+
+export {
+  hardenBrowserPage,
+  createIsolatedSession,
+  type BrowserSecurityOptions
+} from './utils/browserSecurity';
 
 // Export API Authentication, RBAC, and Rate Limiting
 export * from './auth';

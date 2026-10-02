@@ -1,5 +1,6 @@
 import dns from 'dns/promises';
 import { URL } from 'url';
+import { executeSecureRequest } from './secureHttpClient';
 
 /**
  * Security, Resource Limits & SSRF Protection Utility
@@ -20,6 +21,121 @@ export const CRAWL_SECURITY_LIMITS = {
   MAX_REDIRECTS: 5,
   REQUEST_TIMEOUT_MS: 10000
 };
+
+/**
+ * Parses IPv4-mapped IPv6 formats (both dotted decimal "::ffff:127.0.0.1" and WHATWG hex "::ffff:7f00:1")
+ */
+export function parseIpv4MappedIpv6(input: string): string | null {
+  if (!input || typeof input !== 'string') return null;
+  const trimmed = input.trim().toLowerCase().replace(/^\[|\]$/g, '');
+  if (!trimmed.startsWith('::ffff:')) return null;
+
+  const remainder = trimmed.substring(7);
+
+  // Dotted decimal: e.g. "127.0.0.1"
+  if (remainder.includes('.')) {
+    return remainder;
+  }
+
+  // Hex chunks: e.g. "7f00:1" or "7f00:0001" or "a9fe:a9fe"
+  const hexParts = remainder.split(':');
+  if (hexParts.length === 2 && hexParts.every(p => /^[0-9a-f]{1,4}$/i.test(p))) {
+    const high = parseInt(hexParts[0], 16);
+    const low = parseInt(hexParts[1], 16);
+    const a = (high >> 8) & 255;
+    const b = high & 255;
+    const c = (low >> 8) & 255;
+    const d = low & 255;
+    return `${a}.${b}.${c}.${d}`;
+  }
+
+  // Single 32-bit hex without colon, e.g. "7f000001"
+  if (/^[0-9a-f]{1,8}$/i.test(remainder)) {
+    const num = parseInt(remainder, 16);
+    const a = Math.floor(num / 16777216) & 255;
+    const b = Math.floor(num / 65536) & 255;
+    const c = Math.floor(num / 256) & 255;
+    const d = num & 255;
+    return `${a}.${b}.${c}.${d}`;
+  }
+
+  return null;
+}
+
+/**
+ * Normalizes alternative IP representations into standard dotted-decimal IPv4 format.
+ * Handles:
+ * - Dword / 32-bit integer (e.g. "2130706433" -> "127.0.0.1")
+ * - Hexadecimal: single 32-bit (e.g. "0x7f000001" -> "127.0.0.1") or dotted hex ("0x7f.0.0.1")
+ * - Octal: single integer ("017700000001") or dotted octal ("0177.0.0.1")
+ * - BSD shorthand: 1 part ("2130706433"), 2 parts ("127.1" -> "127.0.0.1"), 3 parts ("10.0.1" -> "10.0.0.1")
+ * - Mixed bases: e.g. "127.0.0x0.1"
+ * - IPv4-mapped IPv6: "::ffff:127.0.0.1", "::ffff:7f00:1", "[::ffff:127.0.0.1]"
+ * Returns standard dotted-quad "a.b.c.d" or null if not an alternative/numeric IP.
+ */
+export function normalizeAlternativeIpString(input: string): string | null {
+  if (!input || typeof input !== 'string') return null;
+  let trimmed = input.trim().toLowerCase().replace(/^\[|\]$/g, '');
+
+  if (trimmed.startsWith('::ffff:')) {
+    const mapped = parseIpv4MappedIpv6(trimmed);
+    if (mapped) return mapped;
+  }
+
+  // If contains colons (IPv6), not an alternative IPv4 format
+  if (trimmed.includes(':')) {
+    return null;
+  }
+
+  // Must only contain digits, a-f, x, and dots
+  if (!/^[0-9a-fx.]+$/i.test(trimmed)) {
+    return null;
+  }
+
+  const parts = trimmed.split('.');
+  if (parts.length > 4 || parts.length === 0) {
+    return null;
+  }
+
+  const parsedParts: number[] = [];
+  for (const part of parts) {
+    if (part.length === 0) return null;
+    let val: number;
+    if (part.startsWith('0x') || part.startsWith('0X')) {
+      val = parseInt(part, 16);
+    } else if (part.startsWith('0') && part.length > 1) {
+      if (/[89]/.test(part)) return null; // Invalid octal
+      val = parseInt(part, 8);
+    } else {
+      if (!/^\d+$/.test(part)) return null;
+      val = parseInt(part, 10);
+    }
+    if (isNaN(val) || val < 0) return null;
+    parsedParts.push(val);
+  }
+
+  let ipNum: number;
+  if (parsedParts.length === 1) {
+    ipNum = parsedParts[0];
+    if (ipNum < 0 || ipNum > 0xffffffff) return null;
+  } else if (parsedParts.length === 2) {
+    if (parsedParts[0] > 0xff || parsedParts[1] > 0xffffff) return null;
+    ipNum = (parsedParts[0] * 16777216) + parsedParts[1];
+  } else if (parsedParts.length === 3) {
+    if (parsedParts[0] > 0xff || parsedParts[1] > 0xff || parsedParts[2] > 0xffff) return null;
+    ipNum = (parsedParts[0] * 16777216) + (parsedParts[1] * 65536) + parsedParts[2];
+  } else {
+    if (parsedParts.some(p => p > 0xff)) return null;
+    ipNum = (parsedParts[0] * 16777216) + (parsedParts[1] * 65536) + (parsedParts[2] * 256) + parsedParts[3];
+  }
+
+  const a = Math.floor(ipNum / 16777216) & 255;
+  const b = Math.floor(ipNum / 65536) & 255;
+  const c = Math.floor(ipNum / 256) & 255;
+  const d = ipNum & 255;
+
+  return `${a}.${b}.${c}.${d}`;
+}
 
 /**
  * Strictly parses and validates an IPv4 address string.
@@ -62,7 +178,8 @@ export function parseAndValidateIpv4(ipStr: string): {
 }
 
 /**
- * Checks whether an IPv4 or IPv6 address belongs to private, loopback, or metadata ranges
+ * Checks whether an IPv4 or IPv6 address belongs to private, loopback, or metadata ranges.
+ * Automatically inspects alternative and numeric formats.
  */
 export function isRestrictedIpAddress(ip: string): boolean {
   if (!ip || typeof ip !== 'string') return true;
@@ -77,19 +194,24 @@ export function isRestrictedIpAddress(ip: string): boolean {
   if (normalized.startsWith('2001:db8:')) return true; // IPv6 documentation
   if (normalized.startsWith('100::')) return true; // Discard-only
   if (normalized.startsWith('2002:')) return true; // 6to4
+  if (normalized.startsWith('fd00:ec2::')) return true; // AWS IPv6 metadata
 
   // Normalize IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
-  let ipv4 = normalized;
-  if (normalized.startsWith('::ffff:')) {
-    ipv4 = normalized.substring(7);
+  let candidate = normalized;
+  if (candidate.startsWith('::ffff:')) {
+    candidate = candidate.substring(7);
   }
 
-  const parsed = parseAndValidateIpv4(ipv4);
+  // Check alternative IP formats
+  const altNormalized = normalizeAlternativeIpString(candidate);
+  const ipToCheck = altNormalized || candidate;
+
+  const parsed = parseAndValidateIpv4(ipToCheck);
   if (parsed.isIpPattern) {
     if (!parsed.valid || !parsed.octets) {
       return true; // Malformed IPv4 is always restricted
     }
-    const [a, b, c] = parsed.octets;
+    const [a, b, c, d] = parsed.octets;
 
     // 0.0.0.0/8 (Current network / broadcast)
     if (a === 0) return true;
@@ -111,6 +233,9 @@ export function isRestrictedIpAddress(ip: string): boolean {
 
     // 100.64.0.0/10 (Carrier-Grade NAT: 100.64.0.0 - 100.127.255.255)
     if (a === 100 && b >= 64 && b <= 127) return true;
+
+    // 100.100.100.200 (Alibaba Cloud Metadata)
+    if (a === 100 && b === 100 && c === 100 && d === 200) return true;
 
     // 192.0.0.0/24 (IETF Protocol Assignments)
     if (a === 192 && b === 0 && c === 0) return true;
@@ -150,6 +275,11 @@ export async function validateSafeScrapeUrl(
     return { safe: false, error: 'Target URL is missing or invalid' };
   }
 
+  // Reject null bytes, control characters, or suspicious newline injections
+  if (rawUrl.includes('\0') || rawUrl.includes('%00') || /[\r\n\t]/.test(rawUrl)) {
+    return { safe: false, error: 'URL contains prohibited control characters or null bytes (SSRF protection).' };
+  }
+
   let parsed: URL;
   try {
     parsed = new URL(rawUrl.trim());
@@ -162,33 +292,47 @@ export async function validateSafeScrapeUrl(
     return { safe: false, error: `Invalid protocol "${parsed.protocol}". Only http: and https: are allowed.` };
   }
 
+  // Reject URL credentials (username/password in URL)
+  if (parsed.username || parsed.password) {
+    return { safe: false, error: 'URL credentials (user:pass@) are forbidden (SSRF protection).' };
+  }
+
   const rawHostname = parsed.hostname.toLowerCase();
   const hostname = rawHostname.replace(/^\[|\]$/g, '');
+
+  if (!hostname || hostname.length === 0) {
+    return { safe: false, error: 'URL hostname is empty or invalid.' };
+  }
 
   // Explicit check for cloud metadata hostnames
   if (
     hostname === 'metadata.google.internal' ||
     hostname === '169.254.169.254' ||
-    hostname === 'instance-data'
+    hostname === 'instance-data' ||
+    hostname === 'metadata.titus.netflix.com'
   ) {
     return { safe: false, error: 'Access to cloud metadata endpoints is strictly forbidden (SSRF protection).' };
   }
 
+  // Check alternative IP representation (dword, hex, octal, shorthand, IPv4-mapped IPv6)
+  const altIp = normalizeAlternativeIpString(hostname);
+  const effectiveIp = altIp || hostname;
+
   // Strict IPv4 validation: reject malformed IP addresses without DNS lookup
-  const ipCheck = parseAndValidateIpv4(hostname);
+  const ipCheck = parseAndValidateIpv4(effectiveIp);
   if (ipCheck.isIpPattern) {
     if (!ipCheck.valid || !ipCheck.octets) {
       return { safe: false, error: `Invalid or malformed IPv4 address: "${hostname}"` };
     }
 
-    const [a] = ipCheck.octets;
+    const [a, b, c, d] = ipCheck.octets;
 
     // Loopback 127.0.0.0/8 check
     if (a === 127) {
       const isDemoEndpoint = parsed.pathname === '/api/demo' || parsed.pathname.startsWith('/api/demo/');
       const allowLocal = options.allowLocalhost !== undefined
         ? options.allowLocalhost
-        : (isDemoEndpoint || process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test');
+        : (isDemoEndpoint || process.env.ALLOW_LOCAL_SCRAPING === 'true');
 
       if (!allowLocal) {
         return { safe: false, error: 'Scraping localhost or loopback destinations is blocked (SSRF protection).' };
@@ -196,14 +340,13 @@ export async function validateSafeScrapeUrl(
       return { safe: true, url: parsed };
     }
 
-    if (isRestrictedIpAddress(hostname)) {
-      const allowLocal = options.allowLocalhost !== undefined
-        ? options.allowLocalhost
-        : (process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test');
+    // Cloud metadata or link-local is strictly forbidden unconditionally
+    if ((a === 169 && b === 254) || (a === 100 && b === 100 && c === 100 && d === 200)) {
+      return { safe: false, error: `Access to cloud metadata IP ${hostname} is strictly forbidden (SSRF protection).` };
+    }
 
-      if (!allowLocal) {
-        return { safe: false, error: `Access to private or restricted IP ${hostname} is blocked (SSRF protection).` };
-      }
+    if (isRestrictedIpAddress(effectiveIp)) {
+      return { safe: false, error: `Access to private or restricted IP ${hostname} is blocked (SSRF protection).` };
     }
     return { safe: true, url: parsed };
   }
@@ -213,13 +356,18 @@ export async function validateSafeScrapeUrl(
   const isDemoEndpoint = isLocalHost && (parsed.pathname === '/api/demo' || parsed.pathname.startsWith('/api/demo/'));
   const allowLocal = options.allowLocalhost !== undefined
     ? options.allowLocalhost
-    : (isDemoEndpoint || process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test');
+    : (isDemoEndpoint || process.env.ALLOW_LOCAL_SCRAPING === 'true');
 
   if (isLocalHost) {
     if (!allowLocal) {
       return { safe: false, error: 'Scraping localhost or loopback destinations is blocked (SSRF protection).' };
     }
     return { safe: true, url: parsed };
+  }
+
+  // If hostname is IPv6 or restricted IP directly (e.g. fe80::1, fd00:ec2::254)
+  if (isRestrictedIpAddress(hostname)) {
+    return { safe: false, error: `Access to restricted IP address "${hostname}" is blocked (SSRF protection).` };
   }
 
   // Resolve hostname via dual-stack DNS (IPv4 and IPv6) to prevent DNS rebinding / private IP resolutions
@@ -275,15 +423,19 @@ export interface SafeFetchResult {
   text: string;
   status: number;
   finalUrl: string;
-  headers: Headers;
+  headers: {
+    get(name: string): string | null;
+    [key: string]: any;
+  };
 }
 
 /**
  * Safe HTTP client that enforces:
  * 1. SSRF check on initial target URL
- * 2. Manual redirect handling with SSRF revalidation on every hop
- * 3. Max response payload size caps with early abort on streaming
- * 4. Request timeout abort
+ * 2. Connection-level destination enforcement (DNS rebinding protection)
+ * 3. Manual redirect handling with SSRF revalidation on every hop & protocol downgrade prevention
+ * 4. Max response payload size caps with early streaming abort & decompression bomb protection
+ * 5. Request timeout and stalled stream abort
  */
 export async function safeFetch(
   initialUrl: string,
@@ -298,128 +450,36 @@ export async function safeFetch(
     allowLocalhost = false
   } = options;
 
-  let currentUrl = initialUrl;
-  let redirectCount = 0;
+  const result = await executeSecureRequest(initialUrl, {
+    method: 'GET',
+    timeout,
+    headers: {
+      'User-Agent': userAgent,
+      ...headers
+    },
+    maxRedirects,
+    maxBytes,
+    allowLocalhost
+  });
 
-  // Lifecycle-wide timeout controller covering request, redirects, and streaming body
-  const controller = new AbortController();
-  let timedOut = false;
-  const timeoutId = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, timeout);
-
-  try {
-    while (true) {
-      // 1. SSRF validation of target URL
-      const validation = await validateSafeScrapeUrl(currentUrl, { allowLocalhost });
-      if (!validation.safe) {
-        throw new Error(`SSRF blocked request to "${currentUrl}": ${validation.error}`);
-      }
-
-      let response: Response;
-      try {
-        response = await fetch(currentUrl, {
-          method: 'GET',
-          redirect: 'manual', // Crucial: inspect every redirect hop manually!
-          signal: controller.signal,
-          headers: {
-            'User-Agent': userAgent,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            ...headers
-          }
-        });
-      } catch (fetchErr: any) {
-        if (timedOut || fetchErr.name === 'AbortError' || controller.signal.aborted) {
-          throw new Error(`Request timed out after ${timeout}ms`);
-        }
-        throw fetchErr;
-      }
-
-      // 2. Handle redirects (301, 302, 303, 307, 308)
-      if ([301, 302, 303, 307, 308].includes(response.status)) {
-        redirectCount++;
-        if (redirectCount > maxRedirects) {
-          throw new Error(`Too many redirects (exceeded limit of ${maxRedirects})`);
-        }
-
-        const location = response.headers.get('location');
-        if (!location) {
-          throw new Error(`Redirect HTTP ${response.status} returned without Location header`);
-        }
-
-        // Resolve relative redirect destination against currentUrl
-        currentUrl = new URL(location, currentUrl).href;
-        continue;
-      }
-
-      // 3. Early check on Content-Length header
-      const contentLength = response.headers.get('content-length');
-      if (contentLength && parseInt(contentLength, 10) > maxBytes) {
-        throw new Error(`Response size ${contentLength} bytes exceeds limit of ${maxBytes} bytes`);
-      }
-
-      // 4. Stream response body and count bytes to protect memory
-      if (!response.body) {
-        try {
-          const text = await response.text();
-          return { text, status: response.status, finalUrl: currentUrl, headers: response.headers };
-        } catch (textErr: any) {
-          if (timedOut || textErr.name === 'AbortError' || controller.signal.aborted) {
-            throw new Error(`Request timed out after ${timeout}ms`);
-          }
-          throw textErr;
-        }
-      }
-
-      const reader = response.body.getReader();
-      const chunks: Uint8Array[] = [];
-      let receivedBytes = 0;
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            receivedBytes += value.length;
-            if (receivedBytes > maxBytes) {
-              await reader.cancel();
-              throw new Error(`Response size exceeded limit of ${maxBytes} bytes`);
-            }
-            chunks.push(value);
-          }
-        }
-      } catch (streamErr: any) {
-        if (streamErr.message?.includes('limit of')) {
-          throw streamErr;
-        }
-        if (timedOut || streamErr.name === 'AbortError' || controller.signal.aborted) {
-          throw new Error(`Request timed out after ${timeout}ms`);
-        }
-        throw new Error(`Failed reading response stream: ${streamErr.message}`);
-      }
-
-      // Concatenate chunks and decode into string
-      const totalBuffer = new Uint8Array(receivedBytes);
-      let offset = 0;
-      for (const chunk of chunks) {
-        totalBuffer.set(chunk, offset);
-        offset += chunk.length;
-      }
-
-      const decoder = new TextDecoder('utf-8');
-      const text = decoder.decode(totalBuffer);
-
-      return {
-        text,
-        status: response.status,
-        finalUrl: currentUrl,
-        headers: response.headers
-      };
-    }
-  } finally {
-    clearTimeout(timeoutId);
+  const normalizedHeaders: Record<string, string> = {};
+  for (const [k, v] of Object.entries(result.headers)) {
+    normalizedHeaders[k.toLowerCase()] = v;
   }
+
+  const headerObj = {
+    ...normalizedHeaders,
+    get: (name: string): string | null => {
+      return normalizedHeaders[name.toLowerCase()] ?? null;
+    }
+  };
+
+  return {
+    text: result.text,
+    status: result.status,
+    finalUrl: result.finalUrl,
+    headers: headerObj as any
+  };
 }
 
 /**

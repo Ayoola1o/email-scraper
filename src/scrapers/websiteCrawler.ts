@@ -3,6 +3,7 @@ import { scrapeEmailsFromPage } from './webpageScraper';
 import { extractAndNormalizeEmails, extractEmailRecordsFromHtml, extractPageTitle } from '../utils/emailExtractor';
 import { ScrapedEmailRecord } from '../types/record';
 import { validateSafeScrapeUrl, safeFetch } from '../utils/security';
+import { hardenBrowserPage } from '../utils/browserSecurity';
 
 /**
  * Real-time crawl progress event data
@@ -162,8 +163,9 @@ export async function scrapeEmailRecordsFromWebsite(
       let pageRecords: ScrapedEmailRecord[] = [];
 
       if (useBrowser && browser) {
+        const isAllowed = process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test';
         const validation = await validateSafeScrapeUrl(url, {
-          allowLocalhost: process.env.ALLOW_LOCAL_SCRAPING === 'true' || process.env.NODE_ENV === 'test'
+          allowLocalhost: isAllowed
         });
         if (!validation.safe) {
           throw new Error(`SSRF blocked crawl to unsafe URL: ${validation.error || url}`);
@@ -171,6 +173,7 @@ export async function scrapeEmailRecordsFromWebsite(
 
         const page = await browser.newPage();
         try {
+          await hardenBrowserPage(page, { allowLocalhost: isAllowed });
           await page.goto(url, { waitUntil, timeout });
           html = await page.content();
           pageTitle = extractPageTitle(html);
