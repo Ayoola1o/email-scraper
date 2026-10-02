@@ -98,7 +98,7 @@ class SecureApiClient {
   /**
    * Centralized HTTP Request Dispatcher
    */
-  public async request<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  public async request<T = any>(endpoint: string, options: RequestInit = {}, silentAuthFailure = false): Promise<T> {
     const headers: Record<string, string> = {
       'Accept': 'application/json',
       'X-Requested-With': 'XMLHttpRequest', // CSRF defense
@@ -115,7 +115,7 @@ class SecureApiClient {
 
     const config: RequestInit = {
       ...options,
-      credentials: 'same-origin', // Include session cookie on same origin
+      credentials: 'include', // Transmit session cookies across same-origin and dev server cross-origin
       headers
     };
 
@@ -130,17 +130,33 @@ class SecureApiClient {
     // Inspect status codes for specific security conditions
     if (response.status === 401) {
       this.setAuthToken(null, null);
-      const msg = 'Session expired or authentication failed. Please sign in again.';
-      this.callbacks.onAuthFailure?.(msg);
-      throw new Error(msg);
+      let authMsg = 'Session expired or authentication required. Please sign in to continue.';
+      try {
+        const errJson = await response.clone().json();
+        if (errJson.message) {
+          authMsg = errJson.message;
+        } else if (errJson.error && typeof errJson.error === 'string') {
+          authMsg = errJson.error;
+        } else if (errJson.error?.message) {
+          authMsg = errJson.error.message;
+        }
+      } catch {}
+      if (!silentAuthFailure) {
+        this.callbacks.onAuthFailure?.(authMsg);
+      }
+      throw new Error(authMsg);
     }
 
     if (response.status === 403) {
       let forbiddenMsg = 'Access Denied: You lack permissions to perform this operation or access this resource.';
       try {
         const errJson = await response.clone().json();
-        if (errJson.error?.message || errJson.error) {
-          forbiddenMsg = errJson.error?.message || errJson.error;
+        if (errJson.message) {
+          forbiddenMsg = errJson.message;
+        } else if (errJson.error?.message) {
+          forbiddenMsg = errJson.error.message;
+        } else if (errJson.error && typeof errJson.error === 'string') {
+          forbiddenMsg = errJson.error;
         }
       } catch {}
       this.callbacks.onForbidden?.(forbiddenMsg);
@@ -214,7 +230,7 @@ class SecureApiClient {
 
   public async getMe(): Promise<UserSessionInfo | null> {
     try {
-      const data = await this.request<{ success: boolean; user: UserSessionInfo }>('/api/auth/me');
+      const data = await this.request<{ success: boolean; user: UserSessionInfo }>('/api/auth/me', {}, true);
       if (data && data.user) {
         this.currentUser = data.user;
         return data.user;
@@ -343,7 +359,7 @@ class SecureApiClient {
     const res = await fetch('/api/export', {
       method: 'POST',
       headers,
-      credentials: 'same-origin',
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
 

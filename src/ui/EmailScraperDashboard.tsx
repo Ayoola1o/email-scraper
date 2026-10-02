@@ -668,7 +668,28 @@ unreachable@fakeinvalidhost982348.com
         showToast(`Imported ${finalRecords.length} contacts successfully!`, 'success');
       }
     } catch (err: any) {
-      showToast(`Import error: ${err.message}`, 'error');
+      const errMsg = err.message || 'Import failed';
+      setImportProgress(null);
+      if (
+        errMsg.toLowerCase().includes('authentication') ||
+        errMsg.toLowerCase().includes('session expired') ||
+        errMsg.toLowerCase().includes('unauthorized') ||
+        errMsg.toLowerCase().includes('credentials')
+      ) {
+        triggerAlert('auth_failure', 'Authentication Required to Import Contacts', 'Your session has expired or authentication is required. Please sign in or provide a valid API key with import permissions.');
+        setShowAuthModal(true);
+        showToast('Authentication required: Please sign in to import contact lists.', 'error');
+      } else if (
+        errMsg.toLowerCase().includes('permission') ||
+        errMsg.toLowerCase().includes('forbidden') ||
+        errMsg.toLowerCase().includes('access denied') ||
+        errMsg.toLowerCase().includes('role')
+      ) {
+        triggerAlert('auth_failure', 'Import Permission Denied', errMsg);
+        showToast(`Permission denied: ${errMsg}`, 'error');
+      } else {
+        showToast(`Import error: ${errMsg}`, 'error');
+      }
     } finally {
       setIsImporting(false);
     }

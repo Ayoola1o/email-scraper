@@ -157,7 +157,8 @@ export function authenticateRequest(req: Request): AuthContext | null {
     const cookies = cookieHeader.split(';').map(c => c.trim());
     const sessionCookie = cookies.find(c => c.startsWith('esp_session='));
     if (sessionCookie) {
-      const token = sessionCookie.split('=')[1];
+      const rawVal = sessionCookie.substring('esp_session='.length).trim();
+      const token = decodeURIComponent(rawVal);
       const sessionRes = TokenManager.verifySessionToken(token);
       if (sessionRes.valid && sessionRes.payload) {
         return {

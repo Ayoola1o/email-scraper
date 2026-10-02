@@ -103,7 +103,10 @@ app.use(cors({
     }
     return callback(new Error('Origin not allowed by CORS'));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Requested-With', 'Accept', 'X-Request-Id'],
+  exposedHeaders: ['Content-Disposition', 'Retry-After', 'X-Request-Id', 'Set-Cookie']
 }));
 
 // Standard Security Headers
@@ -204,7 +207,7 @@ app.post('/api/auth/token', validateBody(AuthTokenSchema), async (req: Request, 
         role: keyRes.record.role
       });
 
-      res.setHeader('Set-Cookie', `esp_session=${session.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=7200`);
+      res.setHeader('Set-Cookie', `esp_session=${session.token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=7200${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
       return res.json({
         success: true,
         token: session.token,
@@ -233,7 +236,7 @@ app.post('/api/auth/token', validateBody(AuthTokenSchema), async (req: Request, 
       role: userRole
     });
 
-    res.setHeader('Set-Cookie', `esp_session=${session.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=7200`);
+    res.setHeader('Set-Cookie', `esp_session=${session.token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=7200${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
     return res.json({
       success: true,
       token: session.token,
@@ -255,7 +258,7 @@ app.post('/api/auth/token', validateBody(AuthTokenSchema), async (req: Request, 
  */
 app.post('/api/auth/logout', (req: Request, res: Response) => {
   const auth = authenticateRequest(req);
-  if (auth && auth.authMethod === 'bearer_token') {
+  if (auth && (auth.authMethod === 'bearer_token' || auth.authMethod === 'session_cookie')) {
     const authHeader = req.headers['authorization'];
     if (authHeader) {
       const token = authHeader.replace(/^Bearer\s+/i, '').trim();
@@ -263,10 +266,20 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
       if (verified.payload?.jti) {
         TokenManager.revokeToken(verified.payload.jti);
       }
+    } else if (req.headers['cookie']) {
+      const cookies = req.headers['cookie'].split(';').map(c => c.trim());
+      const sessionCookie = cookies.find(c => c.startsWith('esp_session='));
+      if (sessionCookie) {
+        const rawToken = sessionCookie.substring('esp_session='.length).trim();
+        const verified = TokenManager.verifySessionToken(decodeURIComponent(rawToken));
+        if (verified.payload?.jti) {
+          TokenManager.revokeToken(verified.payload.jti);
+        }
+      }
     }
   }
 
-  res.setHeader('Set-Cookie', 'esp_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT');
+  res.setHeader('Set-Cookie', `esp_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
   return res.json({ success: true, message: 'Logged out successfully' });
 });
 
