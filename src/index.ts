@@ -115,6 +115,9 @@ export {
 // Export API Authentication, RBAC, and Rate Limiting
 export * from './auth';
 
+// Export Centralized Input Validation & Sanitization
+export * from './validation';
+
 /**
  * Main scraper class for easy usage
  */

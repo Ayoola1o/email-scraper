@@ -182,7 +182,8 @@ async function runSecurityAuditTests() {
 
     assert.strictEqual(batchRes.status, 400, 'Submissions > 100 URLs must return HTTP 400');
     const batchData = await batchRes.json();
-    assert.ok(batchData.error.includes('Maximum 100 URLs'), 'Error must specify batch limit exceeded');
+    const batchErr = typeof batchData.error === 'string' ? batchData.error : (batchData.error?.message || '');
+    assert.ok(batchErr.includes('Maximum 100 URLs'), 'Error must specify batch limit exceeded');
     console.log('   ✓ VULN-07 verified: Batch scrape input capped at 100 URLs per request.');
 
     /* ------------------------------------------------------------------------- */

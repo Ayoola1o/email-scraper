@@ -42,7 +42,8 @@ async function runHardeningTests() {
     assert.strictEqual(unauthorizedRes.status, 401, 'Unauthorized request must return HTTP 401');
     const unauthorizedData = await unauthorizedRes.json();
     assert.strictEqual(unauthorizedData.success, false);
-    assert.ok(unauthorizedData.error.includes('Unauthorized'), 'Error message must specify unauthorized');
+    const unauthorizedErr = typeof unauthorizedData.error === 'string' ? unauthorizedData.error : (unauthorizedData.error?.message || '');
+    assert.ok(unauthorizedErr.includes('Unauthorized'), 'Error message must specify unauthorized');
     console.log('   ✓ Test 1 passed: Unauthenticated POST /api/integrations/huntiq/config strictly rejected with 401.');
 
     /* ========================================================================= */
@@ -137,7 +138,8 @@ async function runHardeningTests() {
     });
     assert.strictEqual(badUrlRes.status, 400, 'Malformed URL must return HTTP 400');
     const badUrlData = await badUrlRes.json();
-    assert.ok(badUrlData.error.includes('valid URL'));
+    const badUrlErr = typeof badUrlData.error === 'string' ? badUrlData.error : (badUrlData.error?.message || '');
+    assert.ok(badUrlErr.includes('valid URL'));
 
     // 5b. Unsafe protocol (javascript:, ftp:, file:)
     const unsafeProtoRes = await fetch(`${BASE_URL}/api/integrations/huntiq/config`, {

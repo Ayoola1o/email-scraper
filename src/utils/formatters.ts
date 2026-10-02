@@ -95,7 +95,11 @@ export function filterRecordsBySegment(
  */
 function escapeCsvField(val: string | undefined | null): string {
   if (val === undefined || val === null) return '""';
-  const str = String(val).replace(/"/g, '""').replace(/[\r\n]+/g, ' ');
+  let str = String(val).replace(/"/g, '""').replace(/[\r\n]+/g, ' ');
+  // Prevent CSV Formula Injection (DDE attacks)
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
   return `"${str}"`;
 }
 

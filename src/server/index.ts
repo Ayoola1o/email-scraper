@@ -36,6 +36,31 @@ import {
   ConcurrencyTracker,
   UserRole
 } from '../auth';
+import {
+  requestIdMiddleware,
+  validateBody,
+  validateParams,
+  globalErrorHandler,
+  createErrorResponse,
+  SinglePageScrapeSchema,
+  TextScrapeSchema,
+  WebsiteCrawlSchema,
+  BatchScrapeSchema,
+  JobIdParamSchema,
+  BulkImportSchema,
+  BulkValidatorSchema,
+  VerifyMxSchema,
+  ExportRequestSchema,
+  HuntIQSyncSchema,
+  HuntIQConfigSchema,
+  AuthTokenSchema,
+  CreateApiKeySchema,
+  FolderSchema,
+  SaveFolderRecordsSchema,
+  FolderIdParamSchema,
+  sanitizeFilename,
+  sanitizeForLog
+} from '../validation';
 
 const app = express();
 app.disable('x-powered-by');
@@ -71,6 +96,9 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Centralized Request Tracking (X-Request-Id)
+app.use(requestIdMiddleware);
 
 // Global Rate Limiting & User Quotas
 app.use(createIpRateLimiter());
@@ -166,7 +194,7 @@ app.get('/api/health', (req: Request, res: Response) => {
  * Authenticates user or API client and returns a signed session token.
  * Protected against brute-force attacks via sliding window rate limiter.
  */
-app.post('/api/auth/token', async (req: Request, res: Response) => {
+app.post('/api/auth/token', validateBody(AuthTokenSchema), async (req: Request, res: Response) => {
   try {
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     const bruteForceCheck = await checkAuthBruteForce(ip);
@@ -275,7 +303,7 @@ app.get('/api/auth/me', requireAuth, (req: Request, res: Response) => {
  * POST /api/auth/keys
  * Generates a revocable API key (stores only cryptographic hash)
  */
-app.post('/api/auth/keys', requireAuth, (req: Request, res: Response) => {
+app.post('/api/auth/keys', requireAuth, validateBody(CreateApiKeySchema), (req: Request, res: Response) => {
   try {
     const { name = 'API Key', role, expiresInDays } = req.body;
     const currentUser = req.auth!.user;
@@ -343,7 +371,7 @@ app.delete('/api/auth/keys/:id', requireAuth, (req: Request, res: Response) => {
 /**
  * Scrapes a single webpage
  */
-app.post('/api/scrape/page', requirePermission('scrape:create'), async (req: Request, res: Response) => {
+app.post('/api/scrape/page', requirePermission('scrape:create'), validateBody(SinglePageScrapeSchema), async (req: Request, res: Response) => {
   try {
     const { url, timeout = 12000, userAgent } = req.body;
     if (!url || typeof url !== 'string') {
@@ -379,7 +407,7 @@ app.post('/api/scrape/page', requirePermission('scrape:create'), async (req: Req
 /**
  * Initiates an asynchronous crawl job
  */
-app.post('/api/scrape/crawl', requirePermission('crawl:create'), async (req: Request, res: Response) => {
+app.post('/api/scrape/crawl', requirePermission('crawl:create'), validateBody(WebsiteCrawlSchema), async (req: Request, res: Response) => {
   try {
     const {
       url,
@@ -509,7 +537,7 @@ function broadcastJobEvent(job: ActiveCrawlJob, event: string, data: any) {
  * Server-Sent Events (SSE) endpoint for live crawl telemetry
  * Enforces ownership checks to prevent cross-tenant IDOR inspection.
  */
-app.get('/api/scrape/crawl/stream/:jobId', (req: Request, res: Response) => {
+app.get('/api/scrape/crawl/stream/:jobId', validateParams(JobIdParamSchema), (req: Request, res: Response) => {
   const jobId = req.params.jobId;
   const job = activeJobs.get(jobId);
 
@@ -563,7 +591,7 @@ app.get('/api/scrape/crawl/stream/:jobId', (req: Request, res: Response) => {
  * Cancels a running crawl job
  * Enforces ownership checks to prevent cross-tenant IDOR cancellation.
  */
-app.post('/api/scrape/crawl/cancel/:jobId', requirePermission('crawl:cancel'), (req: Request, res: Response) => {
+app.post('/api/scrape/crawl/cancel/:jobId', requirePermission('crawl:cancel'), validateParams(JobIdParamSchema), (req: Request, res: Response) => {
   const jobId = req.params.jobId;
   const job = activeJobs.get(jobId);
   if (!job) {
@@ -591,7 +619,7 @@ app.post('/api/scrape/crawl/cancel/:jobId', requirePermission('crawl:cancel'), (
  * Strictly validates every submitted URL with SSRF checks (protocol, DNS, private/metadata IPs, redirects, size, timeout)
  * Returns per-URL status without allowing one unsafe URL to compromise the batch operation.
  */
-app.post('/api/scrape/batch', requirePermission('scrape:create'), async (req: Request, res: Response) => {
+app.post('/api/scrape/batch', requirePermission('scrape:create'), validateBody(BatchScrapeSchema), async (req: Request, res: Response) => {
   try {
     const { urls, timeout = 12000, delayMs = 150 } = req.body;
     if (!Array.isArray(urls) || urls.length === 0) {
@@ -670,7 +698,7 @@ app.post('/api/scrape/batch', requirePermission('scrape:create'), async (req: Re
 /**
  * Extracts emails from raw text/HTML snippet directly
  */
-app.post('/api/scrape/text', requirePermission('scrape:create'), (req: Request, res: Response) => {
+app.post('/api/scrape/text', requirePermission('scrape:create'), validateBody(TextScrapeSchema), (req: Request, res: Response) => {
   try {
     const { text, sourceName = 'Manual Input' } = req.body;
     if (!text || typeof text !== 'string') {
@@ -691,9 +719,9 @@ app.post('/api/scrape/text', requirePermission('scrape:create'), (req: Request, 
 /**
  * Formats and exports records
  */
-app.post('/api/export', requirePermission('export:read'), (req: Request, res: Response) => {
+app.post('/api/export', requirePermission('export:read'), validateBody(ExportRequestSchema), (req: Request, res: Response) => {
   try {
-    const { records, format = 'csv', fields, segment = 'all' } = req.body;
+    const { records, format = 'csv', fields, segment = 'all', filename: customFilename } = req.body;
     if (!Array.isArray(records)) {
       return res.status(400).json({ error: 'Records array is required' });
     }
@@ -709,7 +737,10 @@ app.post('/api/export', requirePermission('export:read'), (req: Request, res: Re
 
     const { filtered, prefix, label } = filterRecordsBySegment(records, segment);
     const result = formatRecords(filtered, format as any, Array.isArray(fields) ? fields : undefined);
-    const filename = `${prefix}_${Date.now()}.${result.extension}`;
+    const userFilename = customFilename ? sanitizeFilename(customFilename) : null;
+    const filename = userFilename
+      ? (userFilename.endsWith(`.${result.extension}`) ? userFilename : `${userFilename}.${result.extension}`)
+      : `${prefix}_${Date.now()}.${result.extension}`;
 
     res.setHeader('Content-Type', result.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -807,7 +838,7 @@ app.get('/api/integrations/huntiq/config', (req: Request, res: Response) => {
  * Updates server-side HUNTIQ credentials and configuration in process memory
  * Requires administrator authorization and validates inputs strictly.
  */
-app.post('/api/integrations/huntiq/config', (req: Request, res: Response) => {
+app.post('/api/integrations/huntiq/config', validateBody(HuntIQConfigSchema), (req: Request, res: Response) => {
   try {
     if (!isAuthorizedAdmin(req)) {
       return res.status(401).json({
@@ -873,7 +904,7 @@ app.post('/api/integrations/huntiq/test', requireRole(['admin', 'service']), asy
  * Synchronizes discovered contact records into HUNTIQ (Contract v1.0)
  * Uses server-side credentials only and enforces factual discovery
  */
-app.post('/api/integrations/huntiq/sync', requireRole(['admin', 'service']), async (req: Request, res: Response) => {
+app.post('/api/integrations/huntiq/sync', requireRole(['admin', 'service']), validateBody(HuntIQSyncSchema), async (req: Request, res: Response) => {
   try {
     if (!HuntIQConfigManager.isConfigured()) {
       return res.status(503).json(HuntIQConfigManager.getUnconfiguredError());
@@ -913,7 +944,7 @@ app.post('/api/integrations/huntiq/sync', requireRole(['admin', 'service']), asy
  * Backward compatibility: Deprecated sync endpoint
  * Routes through HuntIQClient and strictly ignores client-controlled credentials/workspaces
  */
-app.post('/api/sync/huntiq', requireRole(['admin', 'service']), async (req: Request, res: Response) => {
+app.post('/api/sync/huntiq', requireRole(['admin', 'service']), validateBody(HuntIQSyncSchema), async (req: Request, res: Response) => {
   res.setHeader('Warning', '299 - "This endpoint is deprecated. Use /api/integrations/huntiq/sync instead."');
   try {
     if (!HuntIQConfigManager.isConfigured()) {
@@ -1003,7 +1034,7 @@ app.get('/api/folders', requirePermission('folders:read'), (req: Request, res: R
 /**
  * Create a new folder
  */
-app.post('/api/folders', requirePermission('folders:manage'), (req: Request, res: Response) => {
+app.post('/api/folders', requirePermission('folders:manage'), validateBody(FolderSchema), (req: Request, res: Response) => {
   try {
     const { name } = req.body;
     if (!name || typeof name !== 'string' || !name.trim()) {
@@ -1023,7 +1054,7 @@ app.post('/api/folders', requirePermission('folders:manage'), (req: Request, res
 /**
  * Get folder records
  */
-app.get('/api/folders/:folderId', requirePermission('folders:read'), (req: Request, res: Response) => {
+app.get('/api/folders/:folderId', requirePermission('folders:read'), validateParams(FolderIdParamSchema), (req: Request, res: Response) => {
   try {
     const folderId = (req.params.folderId || '').trim();
     if (!folderId) {
@@ -1042,7 +1073,7 @@ app.get('/api/folders/:folderId', requirePermission('folders:read'), (req: Reque
 /**
  * Save / Move search records to a folder
  */
-app.post('/api/folders/:folderId/save', requirePermission('folders:manage'), (req: Request, res: Response) => {
+app.post('/api/folders/:folderId/save', requirePermission('folders:manage'), validateParams(FolderIdParamSchema), validateBody(SaveFolderRecordsSchema), (req: Request, res: Response) => {
   try {
     const folderId = (req.params.folderId || '').trim();
     if (!folderId) {
@@ -1068,7 +1099,7 @@ app.post('/api/folders/:folderId/save', requirePermission('folders:manage'), (re
 /**
  * Delete a folder
  */
-app.delete('/api/folders/:folderId', requirePermission('folders:manage'), (req: Request, res: Response) => {
+app.delete('/api/folders/:folderId', requirePermission('folders:manage'), validateParams(FolderIdParamSchema), (req: Request, res: Response) => {
   try {
     const folderId = (req.params.folderId || '').trim();
     if (!folderId) {
@@ -1087,7 +1118,7 @@ app.delete('/api/folders/:folderId', requirePermission('folders:manage'), (req: 
 /**
  * Remove record from folder
  */
-app.delete('/api/folders/:folderId/records/:email', requirePermission('folders:manage'), (req: Request, res: Response) => {
+app.delete('/api/folders/:folderId/records/:email', requirePermission('folders:manage'), validateParams(FolderIdParamSchema), (req: Request, res: Response) => {
   try {
     const folderId = (req.params.folderId || '').trim();
     const email = decodeURIComponent(req.params.email || '').trim();
@@ -1186,8 +1217,8 @@ async function handleVerificationRequest(req: Request, res: Response) {
 /**
  * Verifies live MX records and deliverability for a list of records or emails
  */
-app.post('/api/verify', requirePermission('system:read'), handleVerificationRequest);
-app.post('/api/verify/mx', requirePermission('system:read'), handleVerificationRequest);
+app.post('/api/verify', requirePermission('system:read'), validateBody(VerifyMxSchema), handleVerificationRequest);
+app.post('/api/verify/mx', requirePermission('system:read'), validateBody(VerifyMxSchema), handleVerificationRequest);
 
 /**
  * Bulk Email Validator Endpoint (CSV, TXT, or Array input)
@@ -1196,7 +1227,7 @@ app.post('/api/verify/mx', requirePermission('system:read'), handleVerificationR
  *   Layer 2: Live SMTP/MX verification with RFC 5321 A-record fallback & complete MX enrichment
  * Returns mailbox status, intelligence flags, typo suggestions, canonical deduplication form, and complete MX enrichment.
  */
-app.post('/api/validator/bulk', requirePermission('import:create'), async (req: Request, res: Response) => {
+app.post('/api/validator/bulk', requirePermission('import:create'), validateBody(BulkValidatorSchema), async (req: Request, res: Response) => {
   try {
     const { csv, text, fileContent, records, emails } = req.body;
     let targetRecords: ScrapedEmailRecord[] = [];
@@ -1287,7 +1318,7 @@ app.post('/api/validator/bulk', requirePermission('import:create'), async (req: 
  * Imports pre-compiled email lists (CSV, TSV, JSON, or Plaintext)
  * with optional instant live MX deliverability verification
  */
-app.post('/api/import', requirePermission('import:create'), async (req: Request, res: Response) => {
+app.post('/api/import', requirePermission('import:create'), validateBody(BulkImportSchema), async (req: Request, res: Response) => {
   try {
     const {
       text,
@@ -1454,14 +1485,7 @@ app.get('/api/demo/careers', (req: Request, res: Response) => {
 });
 
 // Global error handling middleware - sanitize error responses and avoid leaking internals
-app.use((err: any, req: Request, res: Response, next: any) => {
-  const statusCode = err.status || err.statusCode || 500;
-  const isProd = process.env.NODE_ENV === 'production';
-  return res.status(statusCode).json({
-    success: false,
-    error: isProd && statusCode >= 500 ? 'Internal server error' : (err.message || 'Unknown error occurred')
-  });
-});
+app.use(globalErrorHandler);
 
 /* ========================================================================= */
 /* Server Initialization                                                     */
