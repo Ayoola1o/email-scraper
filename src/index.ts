@@ -118,6 +118,9 @@ export * from './auth';
 // Export Centralized Input Validation & Sanitization
 export * from './validation';
 
+// Export Durable Jobs, Queue & Event Bus (Phase Five)
+export * from './jobs';
+
 /**
  * Main scraper class for easy usage
  */

@@ -4,4 +4,5 @@ dist/
 .DS_Store
 .env
 *.tsbuildinfo
-
+data/jobs/
+data/api_keys.json

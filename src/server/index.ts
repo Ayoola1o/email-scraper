@@ -61,6 +61,13 @@ import {
   sanitizeFilename,
   sanitizeForLog
 } from '../validation';
+import {
+  jobQueue,
+  jobStore,
+  eventBus,
+  LocalEventBus,
+  QueueCapacityExceededError
+} from '../jobs';
 
 const app = express();
 app.disable('x-powered-by');
@@ -111,78 +118,38 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const publicDir = path.join(__dirname, '../../public');
 app.use(express.static(publicDir));
 
-// Job registry for active crawl streaming sessions
-interface ActiveCrawlJob {
-  id: string;
-  url: string;
-  status: 'running' | 'completed' | 'cancelled' | 'error';
-  progress?: CrawlProgress;
-  records: ScrapedEmailRecord[];
-  pagesVisited: number;
-  errors: number;
-  startedAt: number;
-  endedAt?: number;
-  cancelled: boolean;
-  listeners: Array<(event: string, data: any) => void>;
-  ownerId?: string;
-  isBrowser?: boolean;
-}
-
-/**
- * EPHEMERAL IN-MEMORY JOB STORE:
- * activeJobs tracks runtime state and active SSE listeners for real-time progress.
- * Note: This state is strictly ephemeral and is NOT durable across server restarts.
- * External services (including HUNTIQ) must not rely on activeJobs surviving process restarts.
- */
-const activeJobs = new Map<string, ActiveCrawlJob>();
-
-// Bounded in-memory jobs limits
-const MAX_ENDED_JOBS = 50;
-const MAX_RECORDS_PER_JOB = 5000;
-
-function pruneActiveJobs(): void {
-  const now = Date.now();
-  const endedJobs: { id: string; endedAt: number }[] = [];
-
-  for (const [id, job] of activeJobs.entries()) {
-    if (job.endedAt) {
-      if (now - job.endedAt > 3600000) {
-        // Clean up jobs older than 1 hour
-        activeJobs.delete(id);
-      } else {
-        endedJobs.push({ id, endedAt: job.endedAt });
-      }
-    }
-  }
-
-  // If completed/ended jobs exceed MAX_ENDED_JOBS, purge oldest entries
-  if (endedJobs.length > MAX_ENDED_JOBS) {
-    endedJobs.sort((a, b) => a.endedAt - b.endedAt);
-    const toDelete = endedJobs.slice(0, endedJobs.length - MAX_ENDED_JOBS);
-    for (const item of toDelete) {
-      activeJobs.delete(item.id);
-    }
-  }
-}
-
-// Clean up jobs periodically
-const cleanupTimer = setInterval(pruneActiveJobs, 60000);
-cleanupTimer.unref();
+// Durable Job Queue & Store Startup Recovery (Phase Five)
+jobQueue.recoverOnStartup().catch((err) => {
+  console.warn('[DurableJobQueue] Startup recovery notice:', err.message);
+});
 
 /* ========================================================================= */
 /* API Routes                                                                */
 /* ========================================================================= */
 
 /**
- * Health check
+ * Health check with durable job queue telemetry
  */
-app.get('/api/health', (req: Request, res: Response) => {
-  res.json({
-    status: 'ok',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    activeCrawlJobs: activeJobs.size
-  });
+app.get('/api/health', async (req: Request, res: Response) => {
+  try {
+    const metrics = await jobQueue.getMetrics();
+    return res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      activeCrawlJobs: metrics.running,
+      queuedCrawlJobs: metrics.queued,
+      completedCrawlJobs: metrics.completed,
+      failedCrawlJobs: metrics.failed
+    });
+  } catch {
+    return res.json({
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      activeCrawlJobs: 0
+    });
+  }
 });
 
 /* ========================================================================= */
@@ -405,7 +372,8 @@ app.post('/api/scrape/page', requirePermission('scrape:create'), validateBody(Si
 });
 
 /**
- * Initiates an asynchronous crawl job
+ * Initiates an asynchronous crawl job backed by a durable FIFO queue,
+ * persistent storage, and background worker processing.
  */
 app.post('/api/scrape/crawl', requirePermission('crawl:create'), validateBody(WebsiteCrawlSchema), async (req: Request, res: Response) => {
   try {
@@ -416,7 +384,9 @@ app.post('/api/scrape/crawl', requirePermission('crawl:create'), validateBody(We
       sameDomainOnly = true,
       timeout = 15000,
       delayMs = 250,
-      useBrowser = false
+      useBrowser = false,
+      userAgent,
+      headers
     } = req.body;
 
     if (!url || typeof url !== 'string') {
@@ -428,118 +398,62 @@ app.post('/api/scrape/crawl', requirePermission('crawl:create'), validateBody(We
       return res.status(400).json({ error: validation.error });
     }
 
-    const limits = sanitizeCrawlLimits(maxDepth, maxPages);
-
-    // Enforce Concurrency Quota Limits per user and system-wide
+    // Determine authentic owner context
     const auth = req.auth || authenticateRequest(req);
     const userId = auth?.user?.id || 'usr_anonymous';
-    const isBrowser = Boolean(useBrowser);
 
-    const slot = ConcurrencyTracker.acquireCrawlSlot(userId, isBrowser);
-    if (!slot.success) {
+    // Verify concurrency limits prior to enqueueing
+    const slotCheck = ConcurrencyTracker.acquireCrawlSlot(userId, Boolean(useBrowser));
+    if (!slotCheck.success) {
       return res.status(429).json({
         error: 'Too Many Requests',
         code: 'CONCURRENCY_LIMIT_EXCEEDED',
-        message: slot.error
+        message: slotCheck.error
       });
     }
+    // Release immediately; worker will acquire it during active execution
+    ConcurrencyTracker.releaseCrawlSlot(userId, Boolean(useBrowser));
 
-    const jobId = randomUUID();
-    const job: ActiveCrawlJob = {
-      id: jobId,
-      url: url.trim(),
-      status: 'running',
-      records: [],
-      pagesVisited: 0,
-      errors: 0,
-      startedAt: Date.now(),
-      cancelled: false,
-      listeners: [],
-      ownerId: userId,
-      isBrowser
-    };
+    const job = await jobQueue.enqueue(
+      url.trim(),
+      {
+        maxDepth,
+        maxPages,
+        sameDomainOnly,
+        timeout,
+        delayMs,
+        useBrowser,
+        userAgent,
+        headers
+      },
+      userId
+    );
 
-    activeJobs.set(jobId, job);
-
-    // Run crawl asynchronously in background
-    (async () => {
-      try {
-        const safeTimeout = Math.min(60000, Math.max(1000, parseInt(String(timeout || 15000), 10) || 15000));
-        const safeDelay = Math.min(10000, Math.max(0, parseInt(String(delayMs || 250), 10) || 250));
-
-        const result = await scrapeEmailRecordsFromWebsite(job.url, {
-          maxDepth: limits.depth,
-          maxPages: limits.pages,
-          sameDomainOnly: Boolean(sameDomainOnly),
-          timeout: safeTimeout,
-          delayMs: safeDelay,
-          isCancelled: () => job.cancelled,
-          onProgress: (progress) => {
-            job.progress = progress;
-            job.pagesVisited = progress.pagesVisited;
-            broadcastJobEvent(job, 'progress', progress);
-          },
-          onRecordFound: (rec) => {
-            if (job.records.length < MAX_RECORDS_PER_JOB) {
-              job.records.push(rec);
-            }
-            broadcastJobEvent(job, 'record', rec);
-          },
-          onError: (errUrl, err) => {
-            job.errors++;
-            broadcastJobEvent(job, 'crawler_error', { url: errUrl, message: err.message });
-          }
-        });
-
-        job.status = job.cancelled ? 'cancelled' : 'completed';
-        job.records = result.records.slice(0, MAX_RECORDS_PER_JOB);
-        job.pagesVisited = result.pagesVisited;
-        job.errors = result.errors;
-        job.endedAt = Date.now();
-        pruneActiveJobs();
-
-        broadcastJobEvent(job, 'done', {
-          jobId,
-          status: job.status,
-          totalRecords: job.records.length,
-          pagesVisited: job.pagesVisited,
-          errors: job.errors,
-          durationMs: job.endedAt - job.startedAt,
-          records: job.records
-        });
-      } catch (err: any) {
-        job.status = 'error';
-        job.endedAt = Date.now();
-        pruneActiveJobs();
-        broadcastJobEvent(job, 'error', { message: err.message });
-      } finally {
-        ConcurrencyTracker.releaseCrawlSlot(job.ownerId || userId, Boolean(job.isBrowser));
-      }
-    })();
-
-    res.json({
+    return res.json({
       success: true,
-      jobId,
-      streamUrl: `/api/scrape/crawl/stream/${jobId}`
+      jobId: job.id,
+      streamUrl: `/api/scrape/crawl/stream/${job.id}`
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    if (err instanceof QueueCapacityExceededError) {
+      return res.status(429).json({
+        error: 'Too Many Requests',
+        code: 'QUEUE_CAPACITY_EXCEEDED',
+        message: err.message
+      });
+    }
+    return res.status(500).json({ error: err.message });
   }
 });
 
-function broadcastJobEvent(job: ActiveCrawlJob, event: string, data: any) {
-  for (const listener of job.listeners) {
-    listener(event, data);
-  }
-}
-
 /**
- * Server-Sent Events (SSE) endpoint for live crawl telemetry
- * Enforces ownership checks to prevent cross-tenant IDOR inspection.
+ * Server-Sent Events (SSE) endpoint for live crawl telemetry.
+ * Supports reconnecting clients via Last-Event-ID, event replay, heartbeats,
+ * and multi-tenant IDOR protection.
  */
-app.get('/api/scrape/crawl/stream/:jobId', validateParams(JobIdParamSchema), (req: Request, res: Response) => {
+app.get('/api/scrape/crawl/stream/:jobId', validateParams(JobIdParamSchema), async (req: Request, res: Response) => {
   const jobId = req.params.jobId;
-  const job = activeJobs.get(jobId);
+  const job = await jobStore.getJob(jobId);
 
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
@@ -560,40 +474,75 @@ app.get('/api/scrape/crawl/stream/:jobId', validateParams(JobIdParamSchema), (re
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  // Send initial handshake and state
-  res.write(`event: init\ndata: ${JSON.stringify({ jobId, status: job.status, url: job.url })}\n\n`);
+  // 1. Initial connection handshake event (compatible with existing UI/CLI)
+  res.write(`id: ${jobId}:0\nevent: init\ndata: ${JSON.stringify({ jobId, status: job.status, url: job.url })}\n\n`);
 
-  // Listener callback
-  const listener = (event: string, data: any) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  };
+  // 2. Reconnecting client support with Last-Event-ID or query parameter
+  const lastEventId = req.headers['last-event-id'] || req.query.lastEventId;
+  let sinceSeq = 0;
+  if (typeof lastEventId === 'string') {
+    const parts = lastEventId.split(':');
+    if (parts.length === 2) {
+      sinceSeq = parseInt(parts[1], 10) || 0;
+    }
+  }
 
-  job.listeners.push(listener);
+  if (sinceSeq > 0) {
+    const missedEvents = eventBus.getHistory(jobId, sinceSeq);
+    for (const evt of missedEvents) {
+      res.write(LocalEventBus.formatSse(evt));
+    }
+  } else {
+    // Deliver snapshot if job already has progress or records
+    if (job.progress || job.records.length > 0) {
+      res.write(`event: snapshot\ndata: ${JSON.stringify({
+        jobId,
+        status: job.status,
+        progress: job.progress,
+        pagesVisited: job.pagesVisited,
+        recordsCount: job.records.length,
+        records: job.records
+      })}\n\n`);
+    }
+  }
 
-  // If already finished, deliver done event immediately
-  if (job.status === 'completed' || job.status === 'cancelled' || job.status === 'error') {
+  // 3. If job is already in terminal state, deliver done event immediately
+  if (job.status === 'completed' || job.status === 'cancelled' || job.status === 'failed') {
     res.write(`event: done\ndata: ${JSON.stringify({
       jobId,
       status: job.status,
       totalRecords: job.records.length,
       pagesVisited: job.pagesVisited,
-      durationMs: (job.endedAt || Date.now()) - job.startedAt,
+      errors: job.errors,
+      durationMs: job.durationMs || (job.endedAt ? job.endedAt - job.startedAt : 0),
       records: job.records
     })}\n\n`);
   }
 
+  // 4. Subscribe to live event bus
+  const unsubscribe = eventBus.subscribe(jobId, (streamEvent) => {
+    res.write(LocalEventBus.formatSse(streamEvent));
+  });
+
+  // 5. Periodic heartbeat timer (every 15s to keep connections alive)
+  const heartbeatTimer = setInterval(() => {
+    res.write(LocalEventBus.formatHeartbeat());
+  }, 15000);
+
+  // 6. Memory-safe cleanup on client disconnection
   req.on('close', () => {
-    job.listeners = job.listeners.filter(l => l !== listener);
+    unsubscribe();
+    clearInterval(heartbeatTimer);
   });
 });
 
 /**
- * Cancels a running crawl job
- * Enforces ownership checks to prevent cross-tenant IDOR cancellation.
+ * Cancels a running or queued crawl job with cross-tenant IDOR protection.
+ * Propagates cancellation through the queue and running worker.
  */
-app.post('/api/scrape/crawl/cancel/:jobId', requirePermission('crawl:cancel'), validateParams(JobIdParamSchema), (req: Request, res: Response) => {
+app.post('/api/scrape/crawl/cancel/:jobId', requirePermission('crawl:cancel'), validateParams(JobIdParamSchema), async (req: Request, res: Response) => {
   const jobId = req.params.jobId;
-  const job = activeJobs.get(jobId);
+  const job = await jobStore.getJob(jobId);
   if (!job) {
     return res.status(404).json({ error: 'Job not found' });
   }
@@ -608,10 +557,61 @@ app.post('/api/scrape/crawl/cancel/:jobId', requirePermission('crawl:cancel'), v
     });
   }
 
-  job.cancelled = true;
-  job.status = 'cancelled';
-  broadcastJobEvent(job, 'cancelled', { jobId });
-  res.json({ success: true, message: 'Crawl job cancelled' });
+  const result = await jobQueue.cancelJob(jobId, auth?.user?.id);
+  return res.json({ success: result.success, message: result.message });
+});
+
+/**
+ * GET /api/scrape/crawl/jobs
+ * Lists durable crawl jobs for the authenticated user
+ */
+app.get('/api/scrape/crawl/jobs', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const user = req.auth!.user;
+    const filterOwner = user.role === 'admin' ? 'all' : user.id;
+    const jobs = await jobStore.listJobs(filterOwner, 50);
+    return res.json({ success: true, count: jobs.length, jobs });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/scrape/crawl/jobs/:jobId
+ * Retrieves full details and records for a specific crawl job
+ */
+app.get('/api/scrape/crawl/jobs/:jobId', requireAuth, validateParams(JobIdParamSchema), async (req: Request, res: Response) => {
+  try {
+    const job = await jobStore.getJob(req.params.jobId);
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (!verifyOwnership(job.ownerId, req.auth!.user)) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        code: 'IDOR_ACCESS_DENIED',
+        message: 'Access denied: You do not have permission to inspect this crawl job'
+      });
+    }
+
+    return res.json({ success: true, job });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/scrape/crawl/metrics
+ * System crawl queue metrics
+ */
+app.get('/api/scrape/crawl/metrics', requireRole(['admin', 'service']), async (req: Request, res: Response) => {
+  try {
+    const metrics = await jobQueue.getMetrics();
+    return res.json({ success: true, metrics });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 /**
